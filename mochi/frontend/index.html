@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mochi</title>
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <div id="chat-log" aria-live="polite"></div>
+    <form id="chat-form" autocomplete="off">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="说点什么…（Enter 发送，Esc 打断）"
+        maxlength="2000"
+      />
+      <button id="chat-send" type="submit">发送</button>
+    </form>
+
+    <div id="hud">
+      <span id="status" data-state="connecting">connecting</span>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

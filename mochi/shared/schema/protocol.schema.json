@@ -1,0 +1,303 @@
+{
+  "$defs": {
+    "ChatAgentDeltaPayload": {
+      "properties": {
+        "delta": {
+          "title": "Delta",
+          "type": "string"
+        },
+        "done": {
+          "default": false,
+          "title": "Done",
+          "type": "boolean"
+        },
+        "index": {
+          "default": 0,
+          "title": "Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "delta"
+      ],
+      "title": "ChatAgentDeltaPayload",
+      "type": "object"
+    },
+    "ChatAgentFinalPayload": {
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action"
+        },
+        "emotion": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emotion"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "first_token_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Token Ms"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "route": {
+          "title": "Route",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "route"
+      ],
+      "title": "ChatAgentFinalPayload",
+      "type": "object"
+    },
+    "ChatInterruptPayload": {
+      "properties": {
+        "reason": {
+          "default": "user",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "ChatInterruptPayload",
+      "type": "object"
+    },
+    "ChatUserInputPayload": {
+      "properties": {
+        "modality": {
+          "default": "text",
+          "title": "Modality",
+          "type": "string"
+        },
+        "session_id": {
+          "default": "sess_default",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ChatUserInputPayload",
+      "type": "object"
+    },
+    "Envelope": {
+      "additionalProperties": false,
+      "description": "所有 WS 文本消息的统一信封（计划书 6.2）。\n\n六个字段在**线格式上全部必填**（``turn_id`` 允许为 null），\n这样导出的 JSON Schema 不会把 ``id`` / ``ts`` 误标为可选。\n发送侧请用 :func:`build_envelope` 构造。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "ts": {
+          "title": "Ts",
+          "type": "number"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Turn Id"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "payload"
+      ],
+      "title": "Envelope",
+      "type": "object"
+    },
+    "MessageType": {
+      "enum": [
+        "sys.hello",
+        "sys.hello_ack",
+        "sys.ping",
+        "sys.pong",
+        "sys.error",
+        "sys.status",
+        "chat.user_input",
+        "chat.agent_delta",
+        "chat.agent_final",
+        "chat.interrupt"
+      ],
+      "title": "MessageType",
+      "type": "string"
+    },
+    "SysErrorPayload": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "SysErrorPayload",
+      "type": "object"
+    },
+    "SysHelloAckPayload": {
+      "description": "握手响应，含全量状态快照（S0 只含版本与时间）。",
+      "properties": {
+        "emotion": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emotion"
+        },
+        "protocol": {
+          "default": 1,
+          "title": "Protocol",
+          "type": "integer"
+        },
+        "server_time": {
+          "title": "Server Time",
+          "type": "number"
+        },
+        "server_version": {
+          "title": "Server Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_version",
+        "server_time"
+      ],
+      "title": "SysHelloAckPayload",
+      "type": "object"
+    },
+    "SysPongPayload": {
+      "properties": {
+        "echo_ts": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Echo Ts"
+        },
+        "server_time": {
+          "title": "Server Time",
+          "type": "number"
+        }
+      },
+      "required": [
+        "server_time"
+      ],
+      "title": "SysPongPayload",
+      "type": "object"
+    }
+  },
+  "$id": "https://mochi.local/schema/protocol.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "protocolVersion": 1,
+  "title": "Mochi WS Protocol"
+}

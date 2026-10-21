@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mochi-server"
+version = "0.1.0"
+description = "Mochi desktop companion - Python backend"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.27",
+    "pytest>=8.2",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.setuptools.packages.find]
+where = ["server"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["server", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "TID"]
+
+# I5：业务层禁止直连 LLM SDK；app/providers/ 是唯一例外（见 per-file-ignores）
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"openai".msg = "I5: 请通过 app/providers/ 的 Provider 抽象调用 LLM"
+
+[tool.ruff.lint.per-file-ignores]
+"server/app/providers/*" = ["TID251"]
+"server/app/gateway/protocol.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["server/app", "scripts"]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["uvicorn.*", "pydantic_settings.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["server/tests"]
+pythonpath = ["server"]
+addopts = "-q"

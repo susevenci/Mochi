@@ -1,0 +1,163 @@
+/*
+ * 透明链路（计划书 5.7.2 三个必踩坑之二）：
+ * html / body / #app 全链路必须透明，且 pixi Application 用 backgroundAlpha: 0。
+ */
+html,
+body,
+#stage,
+#hud {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  border: 0;
+  overflow: hidden;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+#stage canvas {
+  display: block;
+  background: transparent !important;
+}
+
+#hud {
+  position: fixed;
+  left: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+#status {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #cfd6e4;
+  background: rgb(20 22 28 / 55%);
+}
+
+#status[data-state='open'] {
+  color: #9ef0b8;
+}
+
+#status[data-state='closed'] {
+  color: #f0a0a0;
+}
+
+/* ── 对话 UI（T1-10）：跟随桌宠窗口宽度居中，而不是贴屏幕左下角 ── */
+#chat-log {
+  position: fixed;
+  left: 50%;
+  /* 尽量贴近角色下方；窗口较矮时回退为底部之上 */
+  bottom: max(64px, calc(50% - 220px));
+  width: min(420px, calc(100% - 24px));
+  transform: translateX(-50%);
+  max-height: 34vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+  pointer-events: none;
+}
+
+#chat-log::-webkit-scrollbar {
+  width: 4px;
+}
+
+#chat-log::-webkit-scrollbar-thumb {
+  background: rgb(120 130 150 / 40%);
+  border-radius: 2px;
+}
+
+.bubble {
+  max-width: 92%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #1f2430;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: rgb(104 140 255 / 92%);
+  color: #fff;
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+}
+
+.bubble.error {
+  background: rgb(255 224 224 / 95%);
+  color: #8a2020;
+}
+
+.emotion-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 16px;
+  color: #5b6478;
+  background: rgb(104 140 255 / 14%);
+  vertical-align: middle;
+}
+
+#chat-form {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  width: min(420px, calc(100% - 24px));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+#chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 94%);
+  font-size: 13px;
+  outline: none;
+}
+
+#chat-input:focus {
+  border-color: rgb(104 140 255 / 70%);
+}
+
+#chat-send {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #688cff;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#chat-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
