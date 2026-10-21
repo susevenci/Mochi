@@ -187,6 +187,43 @@
       "title": "Envelope",
       "type": "object"
     },
+    "InteractionEventPayload": {
+      "description": "前端上报的交互事件（计划书 5.6.6）。\n\n``type`` 即刺激标签（pat_head / touch_face / poke_body / teased / dragged），\nS3 的情感引擎把它转成刺激；S2 只做接收与日志。",
+      "properties": {
+        "area": {
+          "default": "body",
+          "title": "Area",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "type": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "InteractionEventPayload",
+      "type": "object"
+    },
     "MessageType": {
       "enum": [
         "sys.hello",
@@ -199,7 +236,8 @@
         "chat.agent_delta",
         "chat.agent_final",
         "chat.interrupt",
-        "performance.cue"
+        "performance.cue",
+        "interaction.event"
       ],
       "title": "MessageType",
       "type": "string"

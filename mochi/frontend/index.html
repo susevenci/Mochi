@@ -8,6 +8,8 @@
   </head>
   <body>
     <div id="stage"></div>
+    <!-- 模型加载失败时的静态立绘兜底（计划书 5.6.7）：情绪驱动 CSS 滤镜，绝不白屏 -->
+    <img id="fallback-portrait" src="./fallback/portrait.png" alt="" hidden />
 
     <div id="chat-log" aria-live="polite"></div>
     <form id="chat-form" autocomplete="off">
@@ -23,7 +25,11 @@
     <button id="open-settings" type="button" title="LLM 配置" aria-label="LLM 配置">
       &#9881;
     </button>
+    <button id="open-debug" type="button" title="S2 调试面板" aria-label="S2 调试面板">
+      &#128296;
+    </button>
     <div id="settings-root"></div>
+    <div id="debug-root"></div>
 
     <div id="hud">
       <span id="status" data-state="connecting">connecting</span>

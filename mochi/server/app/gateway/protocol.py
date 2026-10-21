@@ -32,6 +32,7 @@ class MessageType(StrEnum):
     CHAT_AGENT_FINAL = "chat.agent_final"
     CHAT_INTERRUPT = "chat.interrupt"
     PERFORMANCE_CUE = "performance.cue"
+    INTERACTION_EVENT = "interaction.event"
 
 
 class Envelope(BaseModel):
@@ -120,3 +121,17 @@ class PerformanceCuePayload(BaseModel):
     motion: str
     expression: str | None = None
     priority: str = "normal"
+
+
+class InteractionEventPayload(BaseModel):
+    """前端上报的交互事件（计划书 5.6.6）。
+
+    ``type`` 即刺激标签（pat_head / touch_face / poke_body / teased / dragged），
+    S3 的情感引擎把它转成刺激；S2 只做接收与日志。
+    """
+
+    type: str = Field(min_length=1, max_length=32)
+    area: str = "body"
+    count: int = Field(default=1, ge=1)
+    x: float = 0.0
+    y: float = 0.0

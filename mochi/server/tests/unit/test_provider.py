@@ -36,7 +36,9 @@ def test_body_keeps_thinking_when_disabled_flag_off() -> None:
 
 def test_gpt_oss_gets_reasoning_effort() -> None:
     """gpt-oss / o-series 用 reasoning_effort 控制思考强度。"""
-    provider = OpenAICompatibleProvider(base_url="http://127.0.0.1:1/v1", model="openai/gpt-oss-20b")
+    provider = OpenAICompatibleProvider(
+        base_url="http://127.0.0.1:1/v1", model="openai/gpt-oss-20b"
+    )
     body = provider._body(  # noqa: SLF001
         [ChatMessage(role="user", content="hi")],
         None,

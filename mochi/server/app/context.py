@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config.character_card import CardLoader
 from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
@@ -16,6 +17,7 @@ from .providers.usage import UsageTracker
 class AppContext:
     settings: Settings
     user_settings: UserSettings
+    characters: CardLoader
     started_at: float
     orchestrator: Orchestrator
     llm: LLMSettingsService

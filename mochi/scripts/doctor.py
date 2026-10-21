@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -85,6 +86,43 @@ def check_cargo() -> Check:
     return Check("Rust / cargo", ok, detail, hint="https://rustup.rs/")
 
 
+def check_gnu_toolchain() -> Check:
+    """桌宠壳固定用 GNU host 工具链（本机无 MSVC）。
+
+    ``desktop/src-tauri/rust-toolchain.toml`` 把这个通道钉死；缺了它
+    ``cargo check`` 会报 "missing manifest in toolchain"。
+    """
+    exe = shutil.which("rustup")
+    if exe is None:
+        return Check("Rust GNU 工具链", False, "rustup 未安装", hint="https://rustup.rs/")
+    try:
+        proc = subprocess.run(
+            [exe, "toolchain", "list"], capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return Check("Rust GNU 工具链", False, f"执行失败: {exc}")
+    ok = "x86_64-pc-windows-gnu" in proc.stdout
+    detail = "已安装" if ok else "缺少 stable-x86_64-pc-windows-gnu"
+    return Check(
+        "Rust GNU 工具链",
+        ok,
+        detail,
+        hint="rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal",
+    )
+
+
+def check_tauri_cli() -> Check:
+    """Tauri CLI 装在哪里决定 ``scripts/tauri.ps1`` 能不能跑。"""
+    root = Path(__file__).resolve().parents[1]
+    cli = root / "desktop" / "node_modules" / ".bin" / "tauri.cmd"
+    return Check(
+        "Tauri CLI (desktop)",
+        cli.exists(),
+        str(cli) if cli.exists() else "未安装",
+        hint="npm.cmd --prefix desktop install",
+    )
+
+
 def check_webview2() -> Check:
     if platform.system() != "Windows":
         return Check("WebView2 Runtime", True, "非 Windows，跳过")
@@ -118,6 +156,8 @@ def main() -> int:
         check_pnpm(),
         check_npm(),
         check_cargo(),
+        check_gnu_toolchain(),
+        check_tauri_cli(),
         check_webview2(),
     ]
     width = max(len(c.name) for c in checks)

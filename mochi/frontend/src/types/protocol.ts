@@ -38,7 +38,15 @@ export interface Envelope {
   v: number;
 }
 
-export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue";
+export interface InteractionEventPayload {
+  area?: string;
+  count?: number;
+  type: string;
+  x?: number;
+  y?: number;
+}
+
+export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event";
 
 export interface PerformanceCuePayload {
   emotion_label: string;

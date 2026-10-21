@@ -24,6 +24,7 @@ from app.gateway.protocol import (
     ChatAgentFinalPayload,
     ChatUserInputPayload,
     Envelope,
+    InteractionEventPayload,
     MessageType,
     PerformanceCuePayload,
     SysHelloAckPayload,
@@ -183,6 +184,25 @@ async def _dispatch(
         if orchestrator is not None and env.turn_id:
             cancelled = orchestrator.interrupt(env.turn_id)
             log.info("interrupt turn=%s accepted=%s", env.turn_id, cancelled)
+        return
+    if env.type == MessageType.INTERACTION_EVENT:
+        try:
+            event = InteractionEventPayload.model_validate(env.payload)
+        except ValidationError as exc:
+            detail = str(exc.errors()[0].get("msg", "invalid payload"))
+            await ws.send_json(
+                error_envelope(ErrorCode.BAD_ENVELOPE, detail=detail, turn_id=env.turn_id)
+            )
+            return
+        # S2 只做接收与取证；S3 的刺激源 2（T3-10）会在此接入 EmotionEngine
+        log.info(
+            "interaction type=%s area=%s count=%d at=(%.0f,%.0f)",
+            event.type,
+            event.area,
+            event.count,
+            event.x,
+            event.y,
+        )
         return
 
     await ws.send_json(

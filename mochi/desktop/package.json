@@ -1,0 +1,14 @@
+{
+  "name": "mochi-desktop",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Tauri 壳的构建入口（前端在 ../frontend，Rust 在 src-tauri）",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "npm.cmd --prefix ../frontend run dev",
+    "build": "npm.cmd --prefix ../frontend run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

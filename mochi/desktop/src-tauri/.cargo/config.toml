@@ -1,0 +1,9 @@
+# 默认目标固定为 GNU 工具链：本机没有 MSVC（VS Build Tools 需管理员权限）。
+# GNU host 工具链自带 self-contained 的 mingw 链接库，配合 rust-lld 即可完成链接，
+# 不需要额外安装 MinGW（见 rust-toolchain.toml 的说明）。
+[build]
+target = "x86_64-pc-windows-gnu"
+
+[target.x86_64-pc-windows-gnu]
+# rustc 对 "rust-lld" 会自动加 -flavor gnu，并使用工具链内置的 self-contained 库
+linker = "rust-lld"

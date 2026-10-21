@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from app.config.llm_settings import LLMSettingsService, mask_key, parse_models
 from app.config.settings import Settings
 from app.config.user_settings import UserSettings
-from fastapi.testclient import TestClient
 
 
 def _env_settings(tmp_path: Path) -> Settings:

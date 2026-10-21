@@ -21,10 +21,23 @@ class Identity(BaseModel):
     forbidden: list[str] = Field(default_factory=list)
 
 
+class Presentation(BaseModel):
+    """角色卡与表现层的绑定（计划书 5.8.2）：模型名 + 情绪→表情映射。
+
+    模型名对应 ``data/live2d/<模型名>/`` 目录；留空表示"用衣柜里第一个可用模型"，
+    交叉校验时只告警不报错（T2-13）。
+    """
+
+    live2d_model: str | None = None
+    # 情绪标签 → .exp3.json 里的表情名；只有模型声明了 Expressions 才有意义
+    emotion_expressions: dict[str, str] = Field(default_factory=dict)
+
+
 class CharacterCard(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     identity: Identity
+    presentation: Presentation = Field(default_factory=Presentation)
     greeting: str = ""
     fallback: str = "唔…我这边好像有点状况，等我一下。"
 

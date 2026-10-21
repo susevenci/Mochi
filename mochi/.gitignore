@@ -17,6 +17,10 @@ frontend/dist/
 # 桌面壳
 desktop/src-tauri/target/
 desktop/src-tauri/binaries/
+# tauri-build 生成的 schema/图标中间产物
+desktop/src-tauri/gen/
+# 本地工具链（MinGW 等，见 scripts/setup_mingw.ps1）
+.tools/
 
 # 运行时数据（发布版位于 %APPDATA%/Mochi）
 # Live2D 模型体积大且受版权保护，只本地存放；仓库只保留 characters/*.yaml 里的模型名引用

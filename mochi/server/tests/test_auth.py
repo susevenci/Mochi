@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
 from app.config.settings import Settings
 from app.gateway.protocol import PROTOCOL_VERSION
 from app.main import create_app
-from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 
 @pytest.fixture()

@@ -1,0 +1,7 @@
+# 固定使用 GNU host 工具链：本机没有 Visual Studio（link.exe 缺失），
+# 用 msvc host 编译时连 build script / proc-macro 都无法链接。
+# GNU 工具链自带完整的 self-contained mingw 链接库 + rust-lld，无需外装 MinGW。
+# 若将来装了 VS Build Tools，删掉本文件并移除 .cargo/config.toml 的 [build] 段即可回到 msvc。
+[toolchain]
+channel = "stable-x86_64-pc-windows-gnu"
+profile = "minimal"

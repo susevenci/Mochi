@@ -1,7 +1,9 @@
-import type { ShellAdapter } from './ShellAdapter';
+import type { ShellAdapter, WindowPosition } from './ShellAdapter';
 
 /** 浏览器开发用空实现：所有窗口操作 no-op，保证前端可在纯浏览器下调试。 */
 export class WebAdapter implements ShellAdapter {
+  readonly isDesktop = false;
+
   async setAlwaysOnTop(): Promise<void> {}
 
   async setClickThrough(): Promise<void> {}
@@ -10,7 +12,7 @@ export class WebAdapter implements ShellAdapter {
 
   async setPosition(): Promise<void> {}
 
-  async getPosition(): Promise<{ x: number; y: number }> {
+  async getPosition(): Promise<WindowPosition> {
     return { x: 0, y: 0 };
   }
 

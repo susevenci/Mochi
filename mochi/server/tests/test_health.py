@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app.gateway.protocol import PROTOCOL_VERSION
 from fastapi.testclient import TestClient
+
+from app.gateway.protocol import PROTOCOL_VERSION
 
 
 def test_health_ok(client: TestClient) -> None:

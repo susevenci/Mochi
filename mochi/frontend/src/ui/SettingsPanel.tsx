@@ -73,6 +73,7 @@ export function SettingsPanel({ onClose }: Props) {
   const [motions, setMotions] = useState<string[]>([]);
   const [selectedMotion, setSelectedMotion] = useState('');
   const [avatarModels, setAvatarModels] = useState<AvatarModel[]>([]);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState('');
   const [status, setStatus] = useState('加载中…');
   const [busy, setBusy] = useState(false);
@@ -96,6 +97,8 @@ export function SettingsPanel({ onClose }: Props) {
       setCurrentAvatar(valid ? String(saved) : (data.models[0]?.id ?? ''));
     } catch (error) {
       console.warn('[settings] 模型清单获取失败', error);
+    } finally {
+      setAvatarLoaded(true);
     }
   }
 
@@ -269,7 +272,9 @@ export function SettingsPanel({ onClose }: Props) {
         <label class="settings-avatar">
           <span>角色模型（衣柜）</span>
           <select value={currentAvatar} onChange={(event) => void switchAvatar(event.currentTarget.value)}>
-            {avatarModels.length === 0 && <option value="">未发现模型</option>}
+            {avatarModels.length === 0 && (
+              <option value="">{avatarLoaded ? '未发现模型' : '加载中…'}</option>
+            )}
             {avatarModels.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.id}（动作 {item.motions} / 表情 {item.expressions}）

@@ -20,5 +20,10 @@ identity:
     - 我无法
     - 亲
     - 您
+# 表现层绑定（T2-13）：模型目录名 + 表情映射；启动时后端做交叉校验
+presentation:
+  live2d_model: qiye_10
+  # qiye_10 没有 .exp3.json，表现全部由 motion 承担；换成带表情的模型时再填这里
+  emotion_expressions: {}
 greeting: 哼，你终于来了。
 fallback: 唔…我这边好像有点状况，等我一下。

@@ -70,6 +70,7 @@ def bootstrap(settings: Settings) -> AppContext:
     return AppContext(
         settings=settings,
         user_settings=user_settings,
+        characters=cards,
         started_at=time.time(),
         orchestrator=orchestrator,
         llm=llm,

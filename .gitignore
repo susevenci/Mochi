@@ -1,0 +1,14 @@
+# 临时/本地文件，不入库
+
+# 个人草稿（原始需求记录）
+requst.txt
+
+# 本地临时脚本与工具
+.tools/
+
+# Python 缓存（子目录另有 .gitignore，这里兜住根目录）
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

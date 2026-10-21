@@ -177,11 +177,73 @@ body {
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  z-index: 15;
+  /* 高于 .settings-mask(30)：面板打开时两个入口仍可点击，避免"第一次点击只关面板" */
+  z-index: 40;
 }
 
-#open-settings:hover {
+#open-debug {
+  position: fixed;
+  top: 10px;
+  right: 48px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 40;
+}
+
+#open-debug:hover {
   background: #fff;
+}
+
+/* ── 静态立绘兜底（模型加载失败时显示） ── */
+#fallback-portrait {
+  position: fixed;
+  left: 50%;
+  bottom: 8%;
+  height: 68%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: filter 320ms ease;
+  filter: saturate(0.95);
+  z-index: 5;
+}
+
+#fallback-portrait[hidden] {
+  display: none;
+}
+
+#fallback-portrait[data-emotion='happy'] {
+  filter: saturate(1.15) brightness(1.04);
+}
+
+#fallback-portrait[data-emotion='excited'] {
+  filter: saturate(1.3) brightness(1.06);
+}
+
+#fallback-portrait[data-emotion='shy'],
+#fallback-portrait[data-emotion='affectionate'] {
+  filter: saturate(1.2) hue-rotate(-6deg);
+}
+
+#fallback-portrait[data-emotion='sad'],
+#fallback-portrait[data-emotion='lonely'] {
+  filter: saturate(0.62) brightness(0.94) hue-rotate(12deg);
+}
+
+#fallback-portrait[data-emotion='angry'] {
+  filter: saturate(1.25) hue-rotate(-14deg) brightness(0.96);
+}
+
+#fallback-portrait[data-emotion='sleepy'],
+#fallback-portrait[data-emotion='bored'] {
+  filter: saturate(0.75) brightness(0.97);
 }
 
 .settings-mask {
@@ -349,4 +411,42 @@ body {
   color: #8b93a1;
   font-size: 11px;
   line-height: 1.5;
+}
+
+/* ── S2 调试面板 ── */
+.debug-panel {
+  width: min(440px, calc(100% - 24px));
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.debug-meter {
+  height: 8px;
+  margin: 6px 0 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 8%);
+  overflow: hidden;
+}
+
+.debug-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8fb3ff, #688cff);
+  transition: width 60ms linear;
+}
+
+.debug-results {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.debug-results li.ok {
+  color: #1f7a4d;
+}
+
+.debug-results li.fail {
+  color: #a32b2b;
 }

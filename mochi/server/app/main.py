@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from pathlib import Path
@@ -25,6 +24,8 @@ from .gateway.auth import is_authorized
 from .gateway.errors import ErrorCode
 from .gateway.protocol import PROTOCOL_VERSION
 from .gateway.ws import ConnectionManager, create_ws_router
+from .orchestration.live2d_binding import scan_live2d_models as _scan_live2d_models
+from .orchestration.live2d_binding import validate_binding
 from .providers.base import LLMError
 
 log = logging.getLogger(__name__)
@@ -50,29 +51,8 @@ def _llm_view(config: LLMConfig) -> dict[str, Any]:
 
 
 def scan_live2d_models(root: Path) -> list[dict[str, Any]]:
-    """扫描 data/live2d/<目录>/<目录>.model3.json，返回模型能力清单（衣柜）。"""
-    models: list[dict[str, Any]] = []
-    if not root.exists():
-        return models
-    for model_json in sorted(root.glob("*/*.model3.json")):
-        try:
-            data = json.loads(model_json.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        refs = data.get("FileReferences") or {}
-        motions = sum(len(group or []) for group in (refs.get("Motions") or {}).values())
-        expressions = len(refs.get("Expressions") or [])
-        folder = model_json.parent.name
-        models.append(
-            {
-                "id": folder,
-                "name": str(data.get("Name") or folder),
-                "url": f"/live2d/{folder}/{model_json.name}",
-                "motions": motions,
-                "expressions": expressions,
-            }
-        )
-    return models
+    """兼容入口：扫描逻辑已移到 ``orchestration/live2d_binding.py``（与绑定校验共用）。"""
+    return _scan_live2d_models(root)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -170,6 +150,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_live2d_models() -> dict[str, Any]:
         models = scan_live2d_models(cfg.data_dir / "live2d")
         return {"models": models, "count": len(models)}
+
+    # ── 角色卡 × 模型交叉校验（T2-13）──
+    @app.get("/api/v1/live2d/binding", dependencies=[Depends(require_token)])
+    async def live2d_binding() -> dict[str, Any]:
+        models = scan_live2d_models(cfg.data_dir / "live2d")
+        report = validate_binding(ctx.characters.current, models)
+        return report.to_payload()
 
     app.include_router(create_ws_router(cfg, manager, __version__, ctx.orchestrator))
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from app.config.settings import Settings
 from app.config.user_settings import UserSettings
-from fastapi.testclient import TestClient
 
 
 def test_defaults_when_missing(tmp_path: Path) -> None:

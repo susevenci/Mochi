@@ -1,4 +1,4 @@
-import type { ShellAdapter } from './ShellAdapter';
+import type { ShellAdapter, WindowPosition } from './ShellAdapter';
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -12,6 +12,8 @@ interface TauriInternals {
  * Rust 侧命令名与 desktop/src-tauri/src/window.rs 一一对应（S5 落地）。
  */
 export class TauriAdapter implements ShellAdapter {
+  readonly isDesktop = true;
+
   private invoke(): InvokeFn {
     const internals = (window as unknown as { __TAURI_INTERNALS__?: TauriInternals })
       .__TAURI_INTERNALS__;
@@ -37,9 +39,8 @@ export class TauriAdapter implements ShellAdapter {
     await this.invoke()('set_position', { x, y });
   }
 
-  async getPosition(): Promise<{ x: number; y: number }> {
-    const result = (await this.invoke()('get_position')) as { x: number; y: number };
-    return result;
+  async getPosition(): Promise<WindowPosition> {
+    return (await this.invoke()('get_position')) as WindowPosition;
   }
 
   async minimizeToTray(): Promise<void> {

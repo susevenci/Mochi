@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.gateway.protocol import PROTOCOL_VERSION
 from fastapi.testclient import TestClient
+
+from app.gateway.protocol import PROTOCOL_VERSION
 
 
 def _env(env_type: str, payload: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
@@ -89,3 +90,27 @@ def test_missing_id_is_bad_envelope(client: TestClient) -> None:
         msg = ws.receive_json()
         assert msg["type"] == "sys.error"
         assert msg["payload"]["code"] == "BAD_ENVELOPE"
+
+
+def test_interaction_event_is_accepted_silently(client: TestClient) -> None:
+    """S2 的交互上报只接收不回答：不应回错误，也不应打断后续会话。"""
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json(
+            _env(
+                "interaction.event",
+                {"type": "pat_head", "area": "head", "count": 3, "x": 120, "y": 80},
+            )
+        )
+        # 紧接着的握手必须正常收到应答，说明连接没被弄脏
+        ws.send_json(_env("sys.ping", {"ts": 1.0}))
+        msg = ws.receive_json()
+        assert msg["type"] == "sys.pong"
+
+
+def test_interaction_event_bad_payload(client: TestClient) -> None:
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json(_env("interaction.event", {"type": ""}))
+        msg = ws.receive_json()
+        assert msg["type"] == "sys.error"
+        assert msg["payload"]["code"] == "BAD_ENVELOPE"
+

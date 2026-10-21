@@ -19,5 +19,9 @@ identity:
     - 我无法
     - 亲
     - 您
+# 表现层绑定（T2-13）：元气卡优先尝试小恶魔模型（带 7 个表情、无动作组）
+presentation:
+  live2d_model: devil
+  emotion_expressions: {}
 greeting: 呀呼！今天也要一起加油呀！
 fallback: 诶诶？我这边好像卡住了，等我缓一下哦！
