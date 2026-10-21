@@ -128,6 +128,64 @@ def cmd_inspect(spec: str) -> int:
     return 0
 
 
+def cmd_install(spec: str) -> int:
+    """按 model3.json 的引用清单，把模型完整下载到 data/live2d/<模型名>/。"""
+    path = _resolve_path(spec)
+    model_name = path.rsplit("/", 1)[-1]
+    entries = _entries(path)
+    model_rel = next(
+        (
+            str(item["name"])
+            for item in entries
+            if item["type"] == "file" and str(item["name"]).endswith((".model3.json", ".model.json"))
+        ),
+        None,
+    )
+    if model_rel is None:
+        print(f"{path}: 未找到 model 定义")
+        return 1
+
+    data = _download_json(RAW + quote(f"{path}/{model_rel}", safe="/"))
+    refs = data.get("FileReferences") or {}
+    wanted: set[str] = {model_rel}
+    for key in ("Moc", "Physics", "Pose", "UserData", "DisplayInfo"):
+        value = refs.get(key)
+        if isinstance(value, str):
+            wanted.add(value)
+    for texture in refs.get("Textures") or []:
+        wanted.add(str(texture))
+    for group in (refs.get("Motions") or {}).values():
+        for motion in group or []:
+            if motion.get("File"):
+                wanted.add(str(motion["File"]))
+            if motion.get("Sound"):
+                wanted.add(str(motion["Sound"]))
+    for expression in refs.get("Expressions") or []:
+        if expression.get("File"):
+            wanted.add(str(expression["File"]))
+
+    target_dir = OUT_DIR.parent / "live2d" / model_name
+    ok = 0
+    failed: list[str] = []
+    for rel in sorted(wanted):
+        url = RAW + quote(f"{path}/{rel}", safe="/")
+        out = target_dir / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            request = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(request, timeout=180) as response:
+                out.write_bytes(response.read())
+            ok += 1
+        except Exception as exc:  # noqa: BLE001 - 逐文件容错，最后汇总
+            failed.append(f"{rel}: {exc}")
+
+    print(f"# {model_name} -> {target_dir}")
+    print(f"  downloaded: {ok}/{len(wanted)}")
+    for item in failed:
+        print(f"  FAILED {item}")
+    return 0 if not failed else 1
+
+
 def cmd_files(spec: str) -> int:
     path = _resolve_path(spec)
     print(f"# path: {path}")
@@ -187,6 +245,8 @@ def main() -> int:
         return cmd_files(sys.argv[2])
     if command == "inspect" and len(sys.argv) >= 3:
         return cmd_inspect(sys.argv[2])
+    if command == "install" and len(sys.argv) >= 3:
+        return cmd_install(sys.argv[2])
     if command == "compare" and len(sys.argv) >= 3:
         for spec in [chunk for chunk in sys.argv[2].split("+") if chunk]:
             cmd_inspect(spec)
