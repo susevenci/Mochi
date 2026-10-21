@@ -161,3 +161,192 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── 设置入口与 LLM 面板 ── */
+#open-settings {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+  color: #4b5563;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 15;
+}
+
+#open-settings:hover {
+  background: #fff;
+}
+
+.settings-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(12 16 24 / 38%);
+}
+
+.settings-panel {
+  width: min(400px, calc(100% - 28px));
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 22%);
+  color: #1f2430;
+  font-size: 13px;
+}
+
+.settings-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-panel h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-close {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-panel label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.settings-panel label > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.settings-panel input,
+.settings-panel select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: 7px;
+  background: #fbfbfd;
+  font-size: 13px;
+  outline: none;
+}
+
+.settings-panel input:focus,
+.settings-panel select:focus {
+  border-color: rgb(104 140 255 / 70%);
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.settings-checkbox input {
+  width: auto;
+  margin: 0;
+}
+
+.settings-panel .settings-checkbox > span {
+  display: inline;
+  margin: 0;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.bubble.typing {
+  color: #8b93a1;
+}
+
+.settings-actions button {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 7px;
+  background: #f3f4f8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-actions button.primary {
+  border-color: transparent;
+  background: #688cff;
+  color: #fff;
+}
+
+.settings-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.settings-status {
+  min-height: 18px;
+  margin: 10px 0 4px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.settings-motions {
+  margin: 4px 0 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(0 0 0 / 8%);
+}
+
+.settings-motions summary {
+  color: #4b5563;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-motion-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.settings-motion-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-motion-row button {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: #688cff;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-hint {
+  margin: 0;
+  color: #8b93a1;
+  font-size: 11px;
+  line-height: 1.5;
+}

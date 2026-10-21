@@ -6,9 +6,10 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 
 from app.config.character_card import CharacterCard, Identity
+from app.config.llm_settings import LLMConfig
 from app.memory.context_builder import ContextBuilder
 from app.memory.short_term import ShortTermMemory
-from app.orchestration.events import FinalPayload
+from app.orchestration.events import CuePayload, FinalPayload
 from app.orchestration.roleplay import RoleplayService
 from app.orchestration.turn_registry import TurnRegistry
 from app.providers.base import ChatMessage, ChatResult, LLMError
@@ -36,6 +37,7 @@ class FakeProvider:
         model: str | None = None,
         temperature: float = 0.85,
         max_tokens: int = 512,
+        disable_thinking: bool = False,
     ) -> AsyncIterator[str]:
         if self._error is not None:
             raise self._error
@@ -50,6 +52,7 @@ class RecordingSink:
     def __init__(self) -> None:
         self.deltas: list[str] = []
         self.finals: list[FinalPayload] = []
+        self.cues: list[CuePayload] = []
         self.errors: list[tuple[str, str]] = []
 
     async def delta(self, turn_id: str, text: str) -> None:
@@ -61,6 +64,9 @@ class RecordingSink:
     async def error(self, turn_id: str, code: str, detail: str = "") -> None:
         self.errors.append((code, detail))
 
+    async def cue(self, turn_id: str, payload: CuePayload) -> None:
+        self.cues.append(payload)
+
 
 def _card() -> CharacterCard:
     return CharacterCard(
@@ -71,10 +77,17 @@ def _card() -> CharacterCard:
     )
 
 
+class FakeLLM:
+    """替身：暴露 provider 与 config，行为与 LLMSettingsService 一致。"""
+
+    def __init__(self, provider: FakeProvider) -> None:
+        self.provider = provider
+        self.config = LLMConfig(base_url="http://fake/v1", api_key="k", model="fake")
+
+
 def _service(provider: FakeProvider, history: ShortTermMemory) -> RoleplayService:
     return RoleplayService(
-        provider=provider,
-        model="fake",
+        llm=FakeLLM(provider),  # type: ignore[arg-type]
         temperature=0.8,
         builder=ContextBuilder(_card()),
         history=history,
@@ -106,6 +119,10 @@ def test_stream_and_mood() -> None:
     assert final.error is None
     assert final.first_token_ms is not None
     assert len(history) == 1
+    # S2：happy 映射为 touch_head 动作
+    assert len(sink.cues) == 1
+    assert sink.cues[0].emotion_label == "happy"
+    assert sink.cues[0].motion == "touch_head"
 
 
 def test_cancelled_turn_does_not_write_history() -> None:

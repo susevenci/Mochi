@@ -67,6 +67,7 @@ class LLMProvider(Protocol):
         model: str | None = None,
         temperature: float = 0.85,
         max_tokens: int = 512,
+        disable_thinking: bool = False,
     ) -> ChatResult: ...
 
     def stream(
@@ -76,6 +77,7 @@ class LLMProvider(Protocol):
         model: str | None = None,
         temperature: float = 0.85,
         max_tokens: int = 512,
+        disable_thinking: bool = False,
     ) -> AsyncIterator[str]:
         """逐段产出正文增量（``reasoning_content`` 一律丢弃）。"""
         ...

@@ -10,7 +10,9 @@
     "gen:types": "node ../scripts/gen-types.mjs"
   },
   "dependencies": {
-    "pixi.js": "7.4.2"
+    "pixi-live2d-display": "^0.4.0",
+    "pixi.js": "7.4.2",
+    "preact": "^11.0.1"
   },
   "devDependencies": {
     "typescript": "5.4.5",

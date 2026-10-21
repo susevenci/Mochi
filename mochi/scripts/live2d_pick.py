@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import urllib.request
 from pathlib import Path
 from urllib.parse import quote
@@ -23,6 +24,20 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "data" / "preview"
 UA = {"User-Agent": "mochi-live2d-picker"}
 
 _cache: dict[str, list[dict]] = {}
+
+
+def _fetch(url: str, *, retries: int = 4, timeout: int = 120) -> bytes:
+    """带退避重试的 GET（raw.githubusercontent 偶发 502）。"""
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            request = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(f"下载失败 {url}: {last}")
 
 
 def _entries(path: str = "") -> list[dict]:
@@ -66,9 +81,7 @@ def cmd_list() -> int:
 
 
 def _download_json(url: str) -> dict:
-    request = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
+    return json.loads(_fetch(url, timeout=60).decode("utf-8"))
 
 
 def cmd_inspect(spec: str) -> int:
@@ -79,7 +92,8 @@ def cmd_inspect(spec: str) -> int:
         (
             str(item["name"])
             for item in entries
-            if item["type"] == "file" and str(item["name"]).endswith((".model3.json", ".model.json"))
+            if item["type"] == "file"
+            and str(item["name"]).endswith((".model3.json", ".model.json"))
         ),
         None,
     )
@@ -137,12 +151,13 @@ def cmd_install(spec: str) -> int:
         (
             str(item["name"])
             for item in entries
-            if item["type"] == "file" and str(item["name"]).endswith((".model3.json", ".model.json"))
+            if item["type"] == "file"
+            and str(item["name"]).endswith((".model3.json", ".model.json"))
         ),
         None,
     )
     if model_rel is None:
-        print(f"{path}: 未找到 model 定义")
+        print(f"{path}: 未找到 model 定义文件")
         return 1
 
     data = _download_json(RAW + quote(f"{path}/{model_rel}", safe="/"))
@@ -172,9 +187,7 @@ def cmd_install(spec: str) -> int:
         out = target_dir / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         try:
-            request = urllib.request.Request(url, headers=UA)
-            with urllib.request.urlopen(request, timeout=180) as response:
-                out.write_bytes(response.read())
+            out.write_bytes(_fetch(url, timeout=180))
             ok += 1
         except Exception as exc:  # noqa: BLE001 - 逐文件容错，最后汇总
             failed.append(f"{rel}: {exc}")

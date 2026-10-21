@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
 from .memory.short_term import ShortTermMemory
 from .orchestration.orchestrator import Orchestrator
-from .providers.factory import ProviderFactory
 from .providers.usage import UsageTracker
 
 
@@ -18,6 +18,6 @@ class AppContext:
     user_settings: UserSettings
     started_at: float
     orchestrator: Orchestrator
-    provider_factory: ProviderFactory
+    llm: LLMSettingsService
     usage: UsageTracker
     history: ShortTermMemory

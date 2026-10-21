@@ -198,10 +198,46 @@
         "chat.user_input",
         "chat.agent_delta",
         "chat.agent_final",
-        "chat.interrupt"
+        "chat.interrupt",
+        "performance.cue"
       ],
       "title": "MessageType",
       "type": "string"
+    },
+    "PerformanceCuePayload": {
+      "properties": {
+        "emotion_label": {
+          "title": "Emotion Label",
+          "type": "string"
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expression"
+        },
+        "motion": {
+          "title": "Motion",
+          "type": "string"
+        },
+        "priority": {
+          "default": "normal",
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "emotion_label",
+        "motion"
+      ],
+      "title": "PerformanceCuePayload",
+      "type": "object"
     },
     "SysErrorPayload": {
       "properties": {

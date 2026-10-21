@@ -65,14 +65,25 @@ class OpenAICompatibleProvider:
         max_tokens: int,
         *,
         stream: bool,
+        disable_thinking: bool = False,
     ) -> dict[str, Any]:
-        return {
+        body: dict[str, Any] = {
             "model": model or self._model,
             "messages": [message.to_wire() for message in messages],
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": stream,
         }
+        if disable_thinking:
+            # 桌宠不依赖模型思考：思考会让首字多等数秒且吃掉 token。
+            # 不同模型家族的控制方式不同，按名字适配（协议方言，不是供应商分支）：
+            # - Qwen / llama.cpp / vLLM / LM Studio → chat_template_kwargs
+            # - gpt-oss / o-series → reasoning_effort（low 为最短思考）
+            body["chat_template_kwargs"] = {"enable_thinking": False}
+            model_name = str(body["model"]).lower()
+            if "gpt-oss" in model_name or model_name.startswith(("o1", "o3", "o4")):
+                body["reasoning_effort"] = "low"
+        return body
 
     async def chat(
         self,
@@ -81,8 +92,16 @@ class OpenAICompatibleProvider:
         model: str | None = None,
         temperature: float = 0.85,
         max_tokens: int = 512,
+        disable_thinking: bool = False,
     ) -> ChatResult:
-        body = self._body(messages, model, temperature, max_tokens, stream=False)
+        body = self._body(
+            messages,
+            model,
+            temperature,
+            max_tokens,
+            stream=False,
+            disable_thinking=disable_thinking,
+        )
         data = await self._post_with_retry("/chat/completions", body)
         choices = data.get("choices") or []
         if not choices:
@@ -103,8 +122,16 @@ class OpenAICompatibleProvider:
         model: str | None = None,
         temperature: float = 0.85,
         max_tokens: int = 512,
+        disable_thinking: bool = False,
     ) -> AsyncIterator[str]:
-        body = self._body(messages, model, temperature, max_tokens, stream=True)
+        body = self._body(
+            messages,
+            model,
+            temperature,
+            max_tokens,
+            stream=True,
+            disable_thinking=disable_thinking,
+        )
         try:
             async with self._client.stream("POST", "/chat/completions", json=body) as response:
                 if response.status_code in AUTH_STATUS:

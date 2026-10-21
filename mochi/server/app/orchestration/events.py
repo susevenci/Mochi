@@ -22,9 +22,19 @@ class FinalPayload:
     usage: dict[str, int] | None = None
 
 
+@dataclass(frozen=True)
+class CuePayload:
+    emotion_label: str
+    motion: str
+    priority: str = "normal"
+    expression: str | None = None
+
+
 class EventSink(Protocol):
     async def delta(self, turn_id: str, text: str) -> None: ...
 
     async def final(self, turn_id: str, payload: FinalPayload) -> None: ...
 
     async def error(self, turn_id: str, code: str, detail: str = "") -> None: ...
+
+    async def cue(self, turn_id: str, payload: CuePayload) -> None: ...

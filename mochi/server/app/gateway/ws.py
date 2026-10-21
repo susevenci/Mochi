@@ -25,11 +25,12 @@ from app.gateway.protocol import (
     ChatUserInputPayload,
     Envelope,
     MessageType,
+    PerformanceCuePayload,
     SysHelloAckPayload,
     SysPongPayload,
     build_envelope,
 )
-from app.orchestration.events import EventSink, FinalPayload
+from app.orchestration.events import CuePayload, EventSink, FinalPayload
 from app.orchestration.orchestrator import Orchestrator
 from app.utils.ids import ulid
 
@@ -93,6 +94,15 @@ class WSSink:
         await self._ws.send_json(
             error_envelope(ErrorCode.INTERNAL, detail=detail or code, turn_id=turn_id)
         )
+
+    async def cue(self, turn_id: str, payload: CuePayload) -> None:
+        body = PerformanceCuePayload(
+            emotion_label=payload.emotion_label,
+            motion=payload.motion,
+            expression=payload.expression,
+            priority=payload.priority,
+        )
+        await self._ws.send_json(_envelope(MessageType.PERFORMANCE_CUE, body, turn_id))
 
 
 def _envelope(env_type: str, payload: Any, turn_id: str | None = None) -> dict[str, Any]:

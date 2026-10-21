@@ -1,9 +1,12 @@
 import { Application, Graphics } from 'pixi.js';
 import { resolveConfig } from './config';
+import { EmotionPresenter } from './live2d/EmotionPresenter';
+import { Live2DStage } from './live2d/Live2DStage';
 import { WSClient, type ConnectionStatus } from './net/WSClient';
 import { ulid } from './net/ulid';
 import { detectShell } from './shell/detect';
 import type { Envelope } from './types/protocol';
+import { mountSettingsPanel } from './ui/SettingsPanel';
 
 const stageEl = document.querySelector<HTMLDivElement>('#stage');
 const statusEl = document.querySelector<HTMLSpanElement>('#status');
@@ -16,41 +19,123 @@ if (!stageEl || !statusEl || !logEl || !formEl || !inputEl || !sendEl) {
   throw new Error('missing required DOM nodes');
 }
 
-// 收窄后集中持有，避免闭包内丢失非空推断
 const dom = { stage: stageEl, status: statusEl, log: logEl, form: formEl, input: inputEl, send: sendEl };
 
 const shell = detectShell();
 const config = resolveConfig();
+
+/** 开发期经 Vite proxy 到后端 /live2d；模型本地存放，不入库 */
+const MODEL_URL = '/live2d/qiye_10/qiye_10.model3.json';
+const MODEL_STORAGE_KEY = 'mochi.live2dModel';
+
+interface Live2DModelInfo {
+  id: string;
+  name: string;
+  url: string;
+  motions: number;
+  expressions: number;
+}
+
+async function loadAvatarModels(): Promise<Live2DModelInfo[]> {
+  const headers: Record<string, string> = {};
+  if (config.token) {
+    headers['X-Mochi-Token'] = config.token;
+  }
+  try {
+    const response = await fetch('/api/v1/live2d/models', { headers });
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as { models: Live2DModelInfo[] };
+    return data.models;
+  } catch (error) {
+    console.warn('[live2d] 模型清单获取失败:', error);
+    return [];
+  }
+}
 
 // 透明背景是"桌宠悬浮"的物理前提（计划书 5.7.2）
 const app = new Application({
   antialias: true,
   resizeTo: window,
 });
-// 用 renderer.background.alpha 而非 backgroundAlpha（后者在 pixi 7.4 已标记废弃）
 app.renderer.background.alpha = 0;
 dom.stage.appendChild(app.view as unknown as HTMLCanvasElement);
 
-// S0/S1 的占位圆：验证渲染管线；S2 替换为 Live2DStage
-const placeholder = new Graphics();
-placeholder.beginFill(0xf3b6b6, 0.92).drawCircle(0, 0, 64).endFill();
-app.stage.addChild(placeholder);
+// 模型加载失败时的兜底占位（计划书 5.6.7）
+const fallback = new Graphics();
+fallback.beginFill(0xf3b6b6, 0.92).drawCircle(0, 0, 64).endFill();
+fallback.visible = false;
+app.stage.addChild(fallback);
 
-// 说话时的时间窗口：用于让占位角色有"正在回应"的最小反馈
+const live2d = new Live2DStage(app);
+const presenter = new EmotionPresenter(live2d);
+
 let speakingUntil = 0;
 
 app.ticker.add(() => {
   const { width, height } = app.screen;
-  placeholder.position.set(width / 2, height / 2);
-  placeholder.rotation += 0.004;
+  fallback.position.set(width / 2, height / 2);
+  if (fallback.visible) {
+    fallback.rotation += 0.004;
+  }
   const now = performance.now();
-  const pulse = now < speakingUntil ? 1 + Math.sin(now / 90) * 0.05 : 1;
-  placeholder.scale.set(pulse);
+  fallback.scale.set(now < speakingUntil ? 1 + Math.sin(now / 90) * 0.05 : 1);
 });
 
-// 点击角色聚焦输入框（S2 会替换为 Live2D 的 hitTest 交互）
-(app.view as unknown as HTMLCanvasElement).addEventListener('pointerdown', () => {
+async function bootModel(): Promise<void> {
+  const models = await loadAvatarModels();
+  const saved = localStorage.getItem(MODEL_STORAGE_KEY);
+  const chosen = models.find((item) => item.id === saved) ?? models[0];
+  const url = chosen?.url ?? MODEL_URL;
+  try {
+    await live2d.load(url);
+    if (chosen) {
+      localStorage.setItem(MODEL_STORAGE_KEY, chosen.id);
+    }
+    console.info('[live2d] model loaded:', url);
+  } catch (error) {
+    console.warn('[live2d] 模型加载失败，回退占位圆:', error);
+    fallback.visible = true;
+  }
+}
+
+/** 衣柜：切换模型（销毁旧的再加载，失败时回退占位圆）。 */
+async function switchModel(id: string): Promise<boolean> {
+  const models = await loadAvatarModels();
+  const target = models.find((item) => item.id === id);
+  if (!target) {
+    console.warn('[live2d] 未找到模型:', id);
+    return false;
+  }
+  presenter.reset();
+  live2d.destroy();
+  try {
+    await live2d.load(target.url);
+    fallback.visible = false;
+    localStorage.setItem(MODEL_STORAGE_KEY, id);
+    console.info('[live2d] 已切换模型:', id);
+    return true;
+  } catch (error) {
+    console.error('[live2d] 切换模型失败:', error);
+    fallback.visible = true;
+    return false;
+  }
+}
+
+window.addEventListener('resize', () => {
+  live2d.layout();
+});
+
+void bootModel();
+
+// 点击角色：聚焦输入框 + 播放摸头/戳身体反应
+(app.view as unknown as HTMLCanvasElement).addEventListener('pointerdown', (event) => {
   dom.input.focus();
+  const canvas = app.view as unknown as HTMLCanvasElement;
+  const rect = canvas.getBoundingClientRect();
+  const relativeY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+  live2d.reactToTap(relativeY);
 });
 
 const statusText: Record<ConnectionStatus, string> = {
@@ -78,7 +163,15 @@ client.on('sys.error', (envelope: Envelope) => {
   console.warn('[mochi] server error', envelope.payload);
 });
 
-// ── 对话 UI（T1-10）──
+// ── 表现指令（S2）：情绪 → Live2D 动作 ──
+client.on('performance.cue', (envelope: Envelope) => {
+  const cue = envelope.payload as { motion?: string; priority?: string; emotion_label?: string };
+  console.info('[live2d] cue', cue);
+  if (!live2d.isReady) return;
+  presenter.apply(cue);
+});
+
+// ── 对话 UI（S1）──
 let currentTurn: string | null = null;
 let currentBubble: HTMLElement | null = null;
 
@@ -102,7 +195,9 @@ function sendCurrent(): void {
   appendBubble('user', text);
   dom.input.value = '';
   currentTurn = ulid();
-  currentBubble = null;
+  // 先占位，首字到达时替换，减少"没反应"的错觉
+  currentBubble = appendBubble('assistant', '…');
+  currentBubble.classList.add('typing');
   setBusy(true);
   client.send('chat.user_input', { text }, currentTurn);
 }
@@ -124,6 +219,9 @@ client.on('chat.agent_delta', (envelope: Envelope) => {
   if (!payload.delta) return;
   if (!currentBubble) {
     currentBubble = appendBubble('assistant');
+  } else if (currentBubble.classList.contains('typing')) {
+    currentBubble.classList.remove('typing');
+    currentBubble.textContent = '';
   }
   currentBubble.textContent = `${currentBubble.textContent ?? ''}${payload.delta}`;
   dom.log.scrollTop = dom.log.scrollHeight;
@@ -140,6 +238,7 @@ client.on('chat.agent_final', (envelope: Envelope) => {
   if (payload.text && !currentBubble) {
     currentBubble = appendBubble('assistant', payload.text);
   } else if (payload.text && currentBubble) {
+    currentBubble.classList.remove('typing');
     currentBubble.textContent = payload.text;
   }
   if (payload.error && payload.error !== 'TURN_CANCELLED') {
@@ -161,5 +260,29 @@ client.on('chat.agent_final', (envelope: Envelope) => {
 dom.input.focus();
 client.connect();
 
+// ── LLM 配置面板（可热切换模型服务）──
+const settingsBtn = document.querySelector<HTMLButtonElement>('#open-settings');
+const settingsRoot = document.querySelector<HTMLDivElement>('#settings-root');
+settingsBtn?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (!settingsRoot) {
+    console.warn('[settings] #settings-root 不存在');
+    return;
+  }
+  try {
+    mountSettingsPanel(settingsRoot);
+    console.info('[settings] 面板已挂载');
+  } catch (error) {
+    console.error('[settings] 面板挂载失败:', error);
+  }
+});
+
 // 开发期调试句柄（不承载业务逻辑）
-(window as unknown as { mochi: unknown }).mochi = { client, shell, app };
+(window as unknown as { mochi: unknown }).mochi = {
+  client,
+  shell,
+  app,
+  live2d,
+  presenter,
+  switchModel,
+};

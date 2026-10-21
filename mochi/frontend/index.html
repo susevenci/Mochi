@@ -20,9 +20,15 @@
       <button id="chat-send" type="submit">发送</button>
     </form>
 
+    <button id="open-settings" type="button" title="LLM 配置" aria-label="LLM 配置">
+      &#9881;
+    </button>
+    <div id="settings-root"></div>
+
     <div id="hud">
       <span id="status" data-state="connecting">connecting</span>
     </div>
+    <script src="/vendor/live2dcubismcore.min.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

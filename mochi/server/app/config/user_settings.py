@@ -19,6 +19,20 @@ WINDOW_DEFAULTS: dict[str, Any] = {
     "autostart": False,
 }
 
+# LLM 运行时配置：留空表示回落到 .env（Settings）
+LLM_DEFAULTS: dict[str, Any] = {
+    "base_url": "",
+    "api_key": "",
+    "model": "",
+    # 桌宠不依赖模型思考：默认关闭，首字更快、不浪费 token
+    "disable_thinking": True,
+}
+
+SECTION_DEFAULTS: dict[str, dict[str, Any]] = {
+    "window": WINDOW_DEFAULTS,
+    "llm": LLM_DEFAULTS,
+}
+
 
 class UserSettings:
     def __init__(self, path: Path) -> None:
@@ -32,19 +46,21 @@ class UserSettings:
 
     def load(self) -> dict[str, Any]:
         """缺失或损坏时回落到默认值，绝不抛异常（程序必须能起来）。"""
-        defaults = {**self._defaults()}
         if not self._path.exists():
-            self._data = defaults
+            self._data = self._defaults()
             return self.get_all()
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            self._data = defaults
+            self._data = self._defaults()
             return self.get_all()
 
         data = raw if isinstance(raw, dict) else {}
-        window = {**WINDOW_DEFAULTS, **(data.get("window") or {})}
-        self._data = {**data, "window": window}
+        merged: dict[str, Any] = dict(data)
+        for section, defaults in SECTION_DEFAULTS.items():
+            stored = data.get(section)
+            merged[section] = {**defaults, **(stored if isinstance(stored, dict) else {})}
+        self._data = merged
         return self.get_all()
 
     def get_all(self) -> dict[str, Any]:
@@ -54,12 +70,12 @@ class UserSettings:
         return self._data.get(key, default)
 
     def patch(self, updates: dict[str, Any]) -> dict[str, Any]:
-        """浅合并写入并落盘；``window`` 为深一层的合并。"""
+        """浅合并写入并落盘；``window`` / ``llm`` 段做深一层合并。"""
         for key, value in updates.items():
-            if key == "window" and isinstance(value, dict):
-                window = dict(self._data.get("window", WINDOW_DEFAULTS))
-                window.update(value)
-                self._data["window"] = window
+            if key in SECTION_DEFAULTS and isinstance(value, dict):
+                section = dict(self._data.get(key, SECTION_DEFAULTS[key]))
+                section.update(value)
+                self._data[key] = section
             else:
                 self._data[key] = value
         self.save()
@@ -74,4 +90,4 @@ class UserSettings:
 
     @staticmethod
     def _defaults() -> dict[str, Any]:
-        return {"window": dict(WINDOW_DEFAULTS)}
+        return {section: dict(defaults) for section, defaults in SECTION_DEFAULTS.items()}

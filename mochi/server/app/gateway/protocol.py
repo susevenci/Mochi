@@ -31,6 +31,7 @@ class MessageType(StrEnum):
     CHAT_AGENT_DELTA = "chat.agent_delta"
     CHAT_AGENT_FINAL = "chat.agent_final"
     CHAT_INTERRUPT = "chat.interrupt"
+    PERFORMANCE_CUE = "performance.cue"
 
 
 class Envelope(BaseModel):
@@ -112,3 +113,10 @@ class ChatAgentFinalPayload(BaseModel):
 
 class ChatInterruptPayload(BaseModel):
     reason: str = "user"
+
+
+class PerformanceCuePayload(BaseModel):
+    emotion_label: str
+    motion: str
+    expression: str | None = None
+    priority: str = "normal"

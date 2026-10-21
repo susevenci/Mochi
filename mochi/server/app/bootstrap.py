@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from .config.character_card import CardLoader
+from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
 from .context import AppContext
@@ -21,7 +22,6 @@ from .orchestration.decision import DecisionService
 from .orchestration.orchestrator import Orchestrator
 from .orchestration.roleplay import RoleplayService
 from .orchestration.turn_registry import TurnRegistry
-from .providers.factory import ProviderFactory
 from .providers.usage import UsageTracker
 
 log = logging.getLogger(__name__)
@@ -45,16 +45,15 @@ def bootstrap(settings: Settings) -> AppContext:
     cards = CardLoader(CHARACTERS_DIR, settings.character)
     builder = ContextBuilder(cards.current)
     history = ShortTermMemory(max_turns=20)
-    factory = ProviderFactory(settings)
+    llm = LLMSettingsService(settings, user_settings)
     usage = UsageTracker()
 
     orchestrator = Orchestrator(
         decision=DecisionService(),
         commands=CommandRouter(cards=cards, history=history, builder=builder),
         roleplay=RoleplayService(
-            provider=factory.provider,
-            model=factory.model_for("chat"),
-            temperature=factory.temperature_for("chat"),
+            llm=llm,
+            temperature=settings.llm_temperature_roleplay,
             builder=builder,
             history=history,
         ),
@@ -65,7 +64,7 @@ def bootstrap(settings: Settings) -> AppContext:
         "bootstrap data_dir=%s character=%s model=%s token=%s",
         settings.data_dir,
         cards.current.id,
-        factory.model_for("chat"),
+        llm.config.model,
         "enabled" if settings.server_token else "disabled",
     )
     return AppContext(
@@ -73,7 +72,7 @@ def bootstrap(settings: Settings) -> AppContext:
         user_settings=user_settings,
         started_at=time.time(),
         orchestrator=orchestrator,
-        provider_factory=factory,
+        llm=llm,
         usage=usage,
         history=history,
     )

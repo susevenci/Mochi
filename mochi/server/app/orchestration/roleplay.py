@@ -11,12 +11,14 @@ from __future__ import annotations
 import logging
 import time
 
+from app.config.llm_settings import LLMSettingsService
 from app.memory.context_builder import ContextBuilder
 from app.memory.short_term import ShortTermMemory
-from app.providers.base import LLMError, LLMProvider
+from app.providers.base import LLMError
 
-from .events import EventSink, FinalPayload
+from .events import CuePayload, EventSink, FinalPayload
 from .mood_parser import MoodStreamParser
+from .performance import map_emotion
 from .turn_registry import Turn
 
 log = logging.getLogger(__name__)
@@ -26,15 +28,13 @@ class RoleplayService:
     def __init__(
         self,
         *,
-        provider: LLMProvider,
-        model: str,
+        llm: LLMSettingsService,
         temperature: float,
         builder: ContextBuilder,
         history: ShortTermMemory,
         max_tokens: int = 400,
     ) -> None:
-        self._provider = provider
-        self._model = model
+        self._llm = llm
         self._temperature = temperature
         self._builder = builder
         self._history = history
@@ -45,20 +45,27 @@ class RoleplayService:
         first_token_ms: int | None = None
         parser = MoodStreamParser()
         messages = self._builder.build(self._history.recent(), user_text)
+        # 每轮取一次配置快照：配置热更新后下一轮立即生效
+        provider = self._llm.provider
+        model = self._llm.config.model
+        disable_thinking = self._llm.config.disable_thinking
         prompt_chars = sum(len(message.content) for message in messages)
         log.info(
-            "roleplay start turn=%s messages=%d prompt_chars=%d",
+            "roleplay start turn=%s messages=%d prompt_chars=%d model=%s thinking=%s",
             turn.id,
             len(messages),
             prompt_chars,
+            model,
+            "off" if disable_thinking else "on",
         )
 
         try:
-            async for chunk in self._provider.stream(
+            async for chunk in provider.stream(
                 messages,
-                model=self._model,
+                model=model,
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
+                disable_thinking=disable_thinking,
             ):
                 if turn.is_cancelled:
                     break
@@ -102,6 +109,17 @@ class RoleplayService:
                 latency_ms,
                 len(result.text),
                 result.parsed,
+            )
+            # S2：把情绪建议映射成 Live2D 表现指令，先于字幕定稿推送
+            cue = map_emotion(result.emotion)
+            await sink.cue(
+                turn.id,
+                CuePayload(
+                    emotion_label=cue.emotion_label,
+                    motion=cue.motion,
+                    priority=cue.priority,
+                    expression=cue.expression,
+                ),
             )
             await sink.final(
                 turn.id,

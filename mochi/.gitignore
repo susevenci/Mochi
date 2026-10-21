@@ -22,3 +22,7 @@ desktop/src-tauri/binaries/
 # Live2D 模型体积大且受版权保护，只本地存放；仓库只保留 characters/*.yaml 里的模型名引用
 data/
 *.db
+
+# Live2D Cubism Core 由官方 SDK 提供（许可允许随应用分发，不适合放进开源仓库）
+# 下载：frontend/README 说明的官方地址，放到 frontend/public/vendor/
+frontend/public/vendor/

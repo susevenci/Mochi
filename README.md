@@ -11,15 +11,19 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | 表演者 | 用 Live2D 把内在状态"演"出来 | 表情 / 动作 / 口型 / TTS 韵律联动 |
 | 执行者 | 能调用工具完成轻量任务 | 工具循环、Skills 懒加载 |
 
+![Mochi 运行效果：Live2D 立绘 + 流式对话 + 情绪标签](docs/images/s2-devil.png)
+
+> 截图中的 Live2D 模型为本地私有资源，不入库；对话由 LLM 实时生成。
+
 ## 当前进度
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | S0 | 环境骨架：后端 / 契约链路 / 前端 / 桌面壳配置 | ✅ 12 项中 7 项通过（壳待 MSVC） |
 | S1 | 对话闭环：Provider、角色卡、纯净上下文、流式双通道解析、WS、前端 UI | ✅ 13/13 |
-| S2 | Live2D 呈现：模型加载、待机、表情/动作、口型 | 🚧 进行中 |
-| S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ⏳ |
-| S4 | 语音链路：ASR / TTS / 半双工 / 打断 | ⏳ |
+| S2 | Live2D 呈现：模型加载、待机、情绪/点击动作、衣柜热切换 | ✅ 完成后端 cue + 前端渲染；口型留 S4 |
+| S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ⏳ 下一步 |
+| S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ⏳ |
 | S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ⏳ |
 | S6 | 记忆 / Skills / 工具 | ⏳ |
 | S7 | 打磨与打包 | ⏳ |
@@ -27,8 +31,9 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
 - 流式**首 token 0.10s**（探针）/ 185–966ms（含上下文的真实对话）
-- 多轮短期记忆、角色卡热切换、`happy` 情绪标签随回复产出
-- `ruff` 0 问题 / `mypy` 0 issue / `pytest` 38 passed
+- 多轮短期记忆、角色卡热切换、情绪标签随回复产出
+- Live2D：`qiye_10` 49 个动作组、点击摸头/戳身体、衣柜热切换；无动作模型自动退回表情
+- `ruff` 0 问题 / `mypy` 0 issue / `pytest` 56 passed
 
 ## 架构
 
@@ -64,6 +69,22 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 
 本质不是"三次 LLM 调用"，而是**三套上下文策略**——所以代码里只有一个 `ContextBuilder(layer=...)`，而不是三个 prompt 拼接函数。
 
+## Live2D 呈现（S2）
+
+**能力自适应**是这一层的核心设计。不同来源的模型能力差异极大，前端按实际能力降级，而不是假设一定有动作：
+
+| 模型能力 | 待机 | 情绪 cue | 点击反馈 |
+|---|---|---|---|
+| 有 `idle` + `touch_*` 动作组 | 循环 `idle` | 播对应动作 | `touch_head` / `touch_body` |
+| 只有表情（VTube Studio 移植模型） | 物理 + 眨眼 | 播放表情 | 播放表情 |
+| 两者都没有 | 物理 + 眨眼 | 忽略 | 忽略 |
+
+**衣柜**：后端扫描 `data/live2d/*/` 生成模型清单（含动作/表情数量），设置面板下拉热切换，失败自动回退占位圆，选择记在 localStorage。
+
+**情绪 → 表现的映射在后端**（`orchestration/performance.py`）：LLM 或情感引擎给出 `emotion.label`，后端映射成 `performance.cue`（`motion` / `expression` / `priority`）推送前端，前端只负责执行，不重复维护规则。
+
+**口型同步**是 S4 的正式项（TTS 音频驱动），S2 不伪造。
+
 ## 目录结构
 
 ```
@@ -75,12 +96,18 @@ mochi/
 │  ├─ memory/             # 上下文预算、短期窗口
 │  ├─ config/             # Settings、角色卡、settings.json
 │  └─ utils/              # ULID、数学原语
-├─ server/tests/          # 38 项测试（协议 / 解析器 / 编排 / 角色扮演）
-├─ frontend/src/          # Vite + TS + pixi（Live2D 层零框架依赖）
+├─ server/tests/          # 56 项测试（协议 / 解析器 / 编排 / 角色扮演 / 配置）
+├─ frontend/src/          # Vite + TS + pixi
+│  ├─ live2d/             # Live2DStage / EmotionPresenter（零框架依赖）
+│  └─ ui/                 # Preact 设置面板（LLM / 衣柜 / 动作试玩）
 ├─ desktop/src-tauri/     # 透明置顶窗配置（待 Rust 工具链）
 ├─ characters/            # 角色卡 YAML（人格、口癖、禁忌）
 ├─ shared/schema/         # 契约 JSON Schema（由后端导出）
 └─ scripts/               # 体检 / 契约生成 / 冒烟 / 模型选型
+```
+
+```
+docs/images/              # README 截图
 ```
 
 ## 快速开始
@@ -100,6 +127,11 @@ copy .env.example .env          # 填 LLM_BASE_URL / LLM_MODEL_CHAT / LLM_API_KE
 # 2. 前端
 cd mochi/frontend
 npm install
+
+# Live2D Cubism Core（官方 SDK，不随仓库分发）
+mkdir public\vendor
+curl.exe -L -o public\vendor\live2dcubismcore.min.js https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js
+
 npm run dev                     # http://127.0.0.1:5173
 ```
 
@@ -128,7 +160,7 @@ node mochi\scripts\gen-types.mjs                            # 再生成前端类
 | --- | --- |
 | 后端 | Python 3.11+ · FastAPI · uvicorn（单 worker）· Pydantic v2 · aiosqlite |
 | LLM | OpenAI 兼容协议（DeepSeek / OpenAI / Ollama / LM Studio 只改 base_url） |
-| 前端 | Vite 5 · TypeScript 5.4 · pixi.js 7.4 · pixi-live2d-display（Cubism 2/4） |
+| 前端 | Vite 5 · TypeScript 5.4 · pixi.js 7.4 · pixi-live2d-display 0.4 · Preact（设置面板） |
 | 桌面壳 | Tauri 2（透明/置顶/无边框/托盘/边车），Electron 为 Plan B |
 | 质量 | ruff · mypy · pytest |
 
@@ -136,4 +168,5 @@ node mochi\scripts\gen-types.mjs                            # 再生成前端类
 
 - 本项目代码仅用于个人学习与本地使用。
 - **Live2D 模型不入库**：模型体积大且版权归属原公司（如游戏厂商），仅存放在本地 `mochi/data/live2d/`，仓库中只保留 `characters/*.yaml` 里的模型名引用。
+- **Live2D Cubism Core 不入库**：由 Live2D Inc. 提供，遵循其 SDK 许可，需按上面的命令自行下载。
 - 同理，不随仓库分发任何提取自商业游戏的素材。

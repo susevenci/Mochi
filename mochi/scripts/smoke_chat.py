@@ -12,6 +12,7 @@ import asyncio
 import json
 import time
 import uuid
+from typing import Any
 
 import websockets
 
@@ -26,7 +27,7 @@ SCENARIOS: dict[str, list[str]] = {
 }
 
 
-async def _one_turn(ws: websockets.WebSocketClientProtocol, text: str, timeout: float) -> dict:
+async def _one_turn(ws: Any, text: str, timeout: float) -> dict:
     turn_id = "SMOKE" + uuid.uuid4().hex[:12].upper()
     envelope = {
         "v": 1,
