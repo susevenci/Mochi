@@ -19,8 +19,6 @@ desktop/src-tauri/target/
 desktop/src-tauri/binaries/
 
 # 运行时数据（发布版位于 %APPDATA%/Mochi）
+# Live2D 模型体积大且受版权保护，只本地存放；仓库只保留 characters/*.yaml 里的模型名引用
 data/
 *.db
-
-# 生成物（如需入库可移除，见第 10 章约定）
-shared/schema/*.json
