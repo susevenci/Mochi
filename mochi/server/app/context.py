@@ -8,6 +8,7 @@ from .config.character_card import CardLoader
 from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
+from .emotion.engine import EmotionEngine
 from .memory.short_term import ShortTermMemory
 from .orchestration.orchestrator import Orchestrator
 from .providers.usage import UsageTracker
@@ -23,3 +24,4 @@ class AppContext:
     llm: LLMSettingsService
     usage: UsageTracker
     history: ShortTermMemory
+    emotion: EmotionEngine

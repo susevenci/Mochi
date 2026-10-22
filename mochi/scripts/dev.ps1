@@ -11,10 +11,11 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 if (-not $FrontendOnly) {
+    $py = & (Join-Path $PSScriptRoot 'py.ps1')
     Write-Host '[mochi] backend  -> http://127.0.0.1:8765/health' -ForegroundColor Cyan
     Start-Process -NoNewWindow powershell -ArgumentList @(
         '-NoExit', '-Command',
-        "Set-Location '$root'; python -m uvicorn --app-dir server app.main:create_app --factory --reload --host 127.0.0.1 --port 8765"
+        "Set-Location '$root'; & '$py' -m uvicorn --app-dir server app.main:create_app --factory --reload --host 127.0.0.1 --port 8765"
     )
 }
 

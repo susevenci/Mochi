@@ -1,0 +1,5 @@
+﻿probe at 2026-10-22T20:34:23.5822953+08:00
+http://127.0.0.1:8080/v1/models -> down
+http://127.0.0.1:11434/v1/models -> down
+http://127.0.0.1:8765/health -> down
+mochi/.env exists: True (未配置真实端点时自动化门禁使用 MockLLMProvider)

@@ -28,7 +28,14 @@ class StubRoleplay:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    async def reply(self, turn: object, user_text: str, sink: object) -> None:
+    async def reply(
+        self,
+        turn: object,
+        user_text: str,
+        sink: object,
+        *,
+        emotion_snapshot: object | None = None,
+    ) -> None:
         self.calls.append(user_text)
         await sink.final(turn.id, FinalPayload(text="嗯。", route="chat"))  # type: ignore[attr-defined]
 

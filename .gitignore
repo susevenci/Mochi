@@ -12,3 +12,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+
+# 测试/调试运行时产物（根目录）
+.coverage
+htmlcov/
+.tmp/

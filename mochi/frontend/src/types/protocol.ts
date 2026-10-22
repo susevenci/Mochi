@@ -29,6 +29,34 @@ export interface ChatUserInputPayload {
   text: string;
 }
 
+export interface EmotionCausePayload {
+  delta: PADPayload;
+  note?: string;
+  resulting_label: string;
+  source: string;
+  stimulus: string;
+  ts: number;
+}
+
+export interface EmotionUpdatePayload {
+  affinity?: number;
+  causes?: EmotionCausePayload[];
+  idle_seconds?: number;
+  intensity: number;
+  label: string;
+  label_changed?: boolean;
+  label_confidence?: number;
+  mood: PADPayload;
+  mood_label?: string;
+  pad: PADPayload;
+  patience?: number;
+  pending_greeting?: string | null;
+  reason?: string;
+  secondary_label?: string | null;
+  trust?: number;
+  ts?: number;
+}
+
 export interface Envelope {
   id: string;
   payload: Record<string, unknown>;
@@ -46,13 +74,32 @@ export interface InteractionEventPayload {
   y?: number;
 }
 
-export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event";
+export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event" | "emotion.update" | "proactive.speak";
+
+export interface PADPayload {
+  arousal: number;
+  dominance: number;
+  valence: number;
+}
 
 export interface PerformanceCuePayload {
+  auto_release_ms?: number | null;
   emotion_label: string;
   expression?: string | null;
+  expression_weight?: number;
   motion: string;
+  params?: Record<string, number> | null;
   priority?: string;
+  secondary_expression?: string | null;
+  secondary_weight?: number;
+  style_hints?: string[] | null;
+  tts?: Record<string, number> | null;
+}
+
+export interface ProactiveSpeakPayload {
+  emotion_label: string;
+  kind?: string;
+  text: string;
 }
 
 export interface SysErrorPayload {

@@ -1,0 +1,46 @@
+name: quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r mochi/requirements.txt
+      - name: Ruff
+        run: python -m ruff check mochi/server mochi/scripts --config mochi/pyproject.toml
+      - name: Mypy
+        run: python -m mypy mochi/server/app mochi/scripts --config-file mochi/pyproject.toml
+      - name: Pytest
+        run: python -m pytest mochi --cov=app.emotion --cov-report=term-missing --cov-fail-under=80
+      - name: Contract drift (I4)
+        run: |
+          python mochi/scripts/export_schema.py
+          node mochi/scripts/gen-types.mjs
+          git diff --exit-code -- mochi/shared mochi/frontend/src/types
+
+  frontend:
+    name: frontend (node 20)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci --prefix mochi/frontend
+      - name: Typecheck and build
+        run: npm run build --prefix mochi/frontend

@@ -15,6 +15,7 @@ from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
 from .context import AppContext
+from .emotion.engine import EmotionEngine
 from .memory.context_builder import ContextBuilder
 from .memory.short_term import ShortTermMemory
 from .orchestration.commands import CommandRouter
@@ -23,6 +24,7 @@ from .orchestration.orchestrator import Orchestrator
 from .orchestration.roleplay import RoleplayService
 from .orchestration.turn_registry import TurnRegistry
 from .providers.usage import UsageTracker
+from .store.emotion_repo import JsonEmotionRepo
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +49,11 @@ def bootstrap(settings: Settings) -> AppContext:
     history = ShortTermMemory(max_turns=20)
     llm = LLMSettingsService(settings, user_settings)
     usage = UsageTracker()
+    emotion = EmotionEngine(
+        card=cards.current,
+        repo=JsonEmotionRepo(settings.data_dir / "emotion_state.json"),
+    )
+    emotion.load()
 
     orchestrator = Orchestrator(
         decision=DecisionService(),
@@ -56,8 +63,10 @@ def bootstrap(settings: Settings) -> AppContext:
             temperature=settings.llm_temperature_roleplay,
             builder=builder,
             history=history,
+            emotion=emotion,
         ),
         turns=TurnRegistry(),
+        emotion=emotion,
     )
 
     log.info(
@@ -76,4 +85,5 @@ def bootstrap(settings: Settings) -> AppContext:
         llm=llm,
         usage=usage,
         history=history,
+        emotion=emotion,
     )

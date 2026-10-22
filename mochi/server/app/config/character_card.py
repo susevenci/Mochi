@@ -33,11 +33,48 @@ class Presentation(BaseModel):
     emotion_expressions: dict[str, str] = Field(default_factory=dict)
 
 
+class ProactiveConfig(BaseModel):
+    """主动性参数（计划书 5.2.6e）：主动搭话的门槛与打扰预算。"""
+
+    enabled: bool = True
+    lonely_threshold_seconds: float = 2400.0
+    spontaneous_interval_seconds: float = 900.0
+    max_per_hour: int = 3
+    min_interval_seconds: float = 600.0
+    quiet_hours: tuple[int, int] = (23, 7)
+
+
+class Persona(BaseModel):
+    """人格对情绪反应的调制参数（计划书 5.2.7）。
+
+    全部字段有默认值：旧角色卡不写 persona 也能跑。
+    """
+
+    baseline_mood: dict[str, float] = Field(default_factory=dict)
+    initial_pad: dict[str, float] = Field(default_factory=dict)
+    # 刺激类别 → 反应增益（praise/insult/intimate/care/task_fail/unexpected/tease）
+    reactivity: dict[str, float] = Field(default_factory=dict)
+    decay_multiplier: float = 1.0
+    refractory_seconds: float = 8.0
+    dominance_recovery: float = 0.0
+    label_bias: dict[str, float] = Field(default_factory=dict)
+    # 人格滤镜：同一刺激可被重新解释（如元气把骂人当玩笑）
+    stimulus_overrides: dict[str, dict[str, object]] = Field(default_factory=dict)
+    forbidden_labels: list[str] = Field(default_factory=list)
+    unlock_rules: list[dict[str, object]] = Field(default_factory=list)
+    proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
+    interjections: dict[str, list[str]] = Field(default_factory=dict)
+    proactive_lines: dict[str, list[str]] = Field(default_factory=dict)
+    greetings: dict[str, str] = Field(default_factory=dict)
+    ack_templates: dict[str, str] = Field(default_factory=dict)
+
+
 class CharacterCard(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     identity: Identity
     presentation: Presentation = Field(default_factory=Presentation)
+    persona: Persona = Field(default_factory=Persona)
     greeting: str = ""
     fallback: str = "唔…我这边好像有点状况，等我一下。"
 

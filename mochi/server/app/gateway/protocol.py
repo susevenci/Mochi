@@ -33,6 +33,8 @@ class MessageType(StrEnum):
     CHAT_INTERRUPT = "chat.interrupt"
     PERFORMANCE_CUE = "performance.cue"
     INTERACTION_EVENT = "interaction.event"
+    EMOTION_UPDATE = "emotion.update"
+    PROACTIVE_SPEAK = "proactive.speak"
 
 
 class Envelope(BaseModel):
@@ -121,6 +123,57 @@ class PerformanceCuePayload(BaseModel):
     motion: str
     expression: str | None = None
     priority: str = "normal"
+    expression_weight: float = 1.0
+    secondary_expression: str | None = None
+    secondary_weight: float = 0.0
+    auto_release_ms: int | None = None
+    tts: dict[str, float] | None = None
+    params: dict[str, float] | None = None
+    style_hints: list[str] | None = None
+
+
+class PADPayload(BaseModel):
+    valence: float
+    arousal: float
+    dominance: float
+
+
+class EmotionCausePayload(BaseModel):
+    ts: float
+    source: str
+    stimulus: str
+    delta: PADPayload
+    resulting_label: str
+    note: str = ""
+
+
+class EmotionUpdatePayload(BaseModel):
+    """``emotion.update``：后端权威情绪快照（不变量 I1）。"""
+
+    pad: PADPayload
+    label: str
+    secondary_label: str | None = None
+    intensity: float
+    label_confidence: float = 1.0
+    mood: PADPayload
+    mood_label: str = "content"
+    affinity: float = 0.0
+    trust: float = 0.0
+    patience: float = 1.0
+    idle_seconds: float = 0.0
+    causes: list[EmotionCausePayload] = Field(default_factory=list)
+    pending_greeting: str | None = None
+    label_changed: bool = False
+    reason: str = ""
+    ts: float = 0.0
+
+
+class ProactiveSpeakPayload(BaseModel):
+    """主动搭话（文案来自角色卡模板）。"""
+
+    text: str
+    emotion_label: str
+    kind: str = "lonely"
 
 
 class InteractionEventPayload(BaseModel):

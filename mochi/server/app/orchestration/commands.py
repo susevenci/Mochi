@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.config.character_card import CardLoader
+from app.config.character_card import CardLoader, CharacterCard
 from app.memory.context_builder import ContextBuilder
 from app.memory.short_term import ShortTermMemory
 
@@ -30,6 +30,10 @@ class CommandRouter:
         self._cards = cards
         self._history = history
         self._builder = builder
+
+    @property
+    def card(self) -> CharacterCard:
+        return self._cards.current
 
     def handle(self, text: str) -> CommandResult | None:
         stripped = text.strip()

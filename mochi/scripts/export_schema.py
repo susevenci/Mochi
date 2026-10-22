@@ -36,6 +36,10 @@ def build_bundle() -> dict[str, object]:
         "ChatInterruptPayload": protocol.ChatInterruptPayload,
         "PerformanceCuePayload": protocol.PerformanceCuePayload,
         "InteractionEventPayload": protocol.InteractionEventPayload,
+        "PADPayload": protocol.PADPayload,
+        "EmotionCausePayload": protocol.EmotionCausePayload,
+        "EmotionUpdatePayload": protocol.EmotionUpdatePayload,
+        "ProactiveSpeakPayload": protocol.ProactiveSpeakPayload,
     }
     defs: dict[str, object] = {}
     for name, model in models.items():

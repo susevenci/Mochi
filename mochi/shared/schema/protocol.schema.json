@@ -139,6 +139,233 @@
       "title": "ChatUserInputPayload",
       "type": "object"
     },
+    "EmotionCausePayload": {
+      "$defs": {
+        "PADPayload": {
+          "properties": {
+            "arousal": {
+              "title": "Arousal",
+              "type": "number"
+            },
+            "dominance": {
+              "title": "Dominance",
+              "type": "number"
+            },
+            "valence": {
+              "title": "Valence",
+              "type": "number"
+            }
+          },
+          "required": [
+            "valence",
+            "arousal",
+            "dominance"
+          ],
+          "title": "PADPayload",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "delta": {
+          "$ref": "#/$defs/PADPayload"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "resulting_label": {
+          "title": "Resulting Label",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "stimulus": {
+          "title": "Stimulus",
+          "type": "string"
+        },
+        "ts": {
+          "title": "Ts",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ts",
+        "source",
+        "stimulus",
+        "delta",
+        "resulting_label"
+      ],
+      "title": "EmotionCausePayload",
+      "type": "object"
+    },
+    "EmotionUpdatePayload": {
+      "$defs": {
+        "EmotionCausePayload": {
+          "properties": {
+            "delta": {
+              "$ref": "#/$defs/PADPayload"
+            },
+            "note": {
+              "default": "",
+              "title": "Note",
+              "type": "string"
+            },
+            "resulting_label": {
+              "title": "Resulting Label",
+              "type": "string"
+            },
+            "source": {
+              "title": "Source",
+              "type": "string"
+            },
+            "stimulus": {
+              "title": "Stimulus",
+              "type": "string"
+            },
+            "ts": {
+              "title": "Ts",
+              "type": "number"
+            }
+          },
+          "required": [
+            "ts",
+            "source",
+            "stimulus",
+            "delta",
+            "resulting_label"
+          ],
+          "title": "EmotionCausePayload",
+          "type": "object"
+        },
+        "PADPayload": {
+          "properties": {
+            "arousal": {
+              "title": "Arousal",
+              "type": "number"
+            },
+            "dominance": {
+              "title": "Dominance",
+              "type": "number"
+            },
+            "valence": {
+              "title": "Valence",
+              "type": "number"
+            }
+          },
+          "required": [
+            "valence",
+            "arousal",
+            "dominance"
+          ],
+          "title": "PADPayload",
+          "type": "object"
+        }
+      },
+      "description": "``emotion.update``：后端权威情绪快照（不变量 I1）。",
+      "properties": {
+        "affinity": {
+          "default": 0.0,
+          "title": "Affinity",
+          "type": "number"
+        },
+        "causes": {
+          "items": {
+            "$ref": "#/$defs/EmotionCausePayload"
+          },
+          "title": "Causes",
+          "type": "array"
+        },
+        "idle_seconds": {
+          "default": 0.0,
+          "title": "Idle Seconds",
+          "type": "number"
+        },
+        "intensity": {
+          "title": "Intensity",
+          "type": "number"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "label_changed": {
+          "default": false,
+          "title": "Label Changed",
+          "type": "boolean"
+        },
+        "label_confidence": {
+          "default": 1.0,
+          "title": "Label Confidence",
+          "type": "number"
+        },
+        "mood": {
+          "$ref": "#/$defs/PADPayload"
+        },
+        "mood_label": {
+          "default": "content",
+          "title": "Mood Label",
+          "type": "string"
+        },
+        "pad": {
+          "$ref": "#/$defs/PADPayload"
+        },
+        "patience": {
+          "default": 1.0,
+          "title": "Patience",
+          "type": "number"
+        },
+        "pending_greeting": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending Greeting"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "secondary_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Secondary Label"
+        },
+        "trust": {
+          "default": 0.0,
+          "title": "Trust",
+          "type": "number"
+        },
+        "ts": {
+          "default": 0.0,
+          "title": "Ts",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pad",
+        "label",
+        "intensity",
+        "mood"
+      ],
+      "title": "EmotionUpdatePayload",
+      "type": "object"
+    },
     "Envelope": {
       "additionalProperties": false,
       "description": "所有 WS 文本消息的统一信封（计划书 6.2）。\n\n六个字段在**线格式上全部必填**（``turn_id`` 允许为 null），\n这样导出的 JSON Schema 不会把 ``id`` / ``ts`` 误标为可选。\n发送侧请用 :func:`build_envelope` 构造。",
@@ -237,13 +464,50 @@
         "chat.agent_final",
         "chat.interrupt",
         "performance.cue",
-        "interaction.event"
+        "interaction.event",
+        "emotion.update",
+        "proactive.speak"
       ],
       "title": "MessageType",
       "type": "string"
     },
+    "PADPayload": {
+      "properties": {
+        "arousal": {
+          "title": "Arousal",
+          "type": "number"
+        },
+        "dominance": {
+          "title": "Dominance",
+          "type": "number"
+        },
+        "valence": {
+          "title": "Valence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "valence",
+        "arousal",
+        "dominance"
+      ],
+      "title": "PADPayload",
+      "type": "object"
+    },
     "PerformanceCuePayload": {
       "properties": {
+        "auto_release_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Auto Release Ms"
+        },
         "emotion_label": {
           "title": "Emotion Label",
           "type": "string"
@@ -260,14 +524,81 @@
           "default": null,
           "title": "Expression"
         },
+        "expression_weight": {
+          "default": 1.0,
+          "title": "Expression Weight",
+          "type": "number"
+        },
         "motion": {
           "title": "Motion",
           "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
         },
         "priority": {
           "default": "normal",
           "title": "Priority",
           "type": "string"
+        },
+        "secondary_expression": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Secondary Expression"
+        },
+        "secondary_weight": {
+          "default": 0.0,
+          "title": "Secondary Weight",
+          "type": "number"
+        },
+        "style_hints": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Style Hints"
+        },
+        "tts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tts"
         }
       },
       "required": [
@@ -275,6 +606,30 @@
         "motion"
       ],
       "title": "PerformanceCuePayload",
+      "type": "object"
+    },
+    "ProactiveSpeakPayload": {
+      "description": "主动搭话（文案来自角色卡模板）。",
+      "properties": {
+        "emotion_label": {
+          "title": "Emotion Label",
+          "type": "string"
+        },
+        "kind": {
+          "default": "lonely",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "emotion_label"
+      ],
+      "title": "ProactiveSpeakPayload",
       "type": "object"
     },
     "SysErrorPayload": {

@@ -14,6 +14,11 @@ import { ulid } from './net/ulid';
 import { detectShell } from './shell/detect';
 import type { Envelope } from './types/protocol';
 import { mountDevPanel } from './ui/DevPanel';
+import {
+  ingestEmotion,
+  loadEmotionHistory,
+  type EmotionSnapshot,
+} from './ui/emotionStore';
 import { mountSettingsPanel } from './ui/SettingsPanel';
 
 const stageEl = document.querySelector<HTMLDivElement>('#stage');
@@ -110,7 +115,7 @@ const idle = new IdleController(live2d);
 const gaze = new GazeController(live2d);
 const lipSync = new LipSync(live2d);
 const audio = new AudioPlayer();
-const cues = new CueDispatcher(motion, expression, idle);
+const cues = new CueDispatcher(motion, expression, idle, live2d);
 
 /** 模型加载失败/切换失败时的兜底：静态立绘 + 情绪滤镜，绝不白屏 */
 function showFallback(reason: string): void {
@@ -300,9 +305,45 @@ const client = new WSClient({
 });
 
 client.on('sys.hello_ack', (envelope: Envelope) => {
-  const payload = envelope.payload as { server_version?: unknown };
+  const payload = envelope.payload as {
+    server_version?: unknown;
+    emotion?: EmotionSnapshot | null;
+  };
   console.info('[mochi] backend ready', payload);
   dom.status.textContent = `ready v${String(payload.server_version ?? '?')}`;
+  if (payload.emotion) {
+    ingestEmotion(payload.emotion);
+    dom.fallback.dataset.emotion = payload.emotion.label ?? 'neutral';
+    if (payload.emotion.pending_greeting) {
+      void showPendingGreeting();
+    }
+  }
+});
+
+// 情绪快照（I1：后端唯一权威；前端只缓存与呈现）
+client.on('emotion.update', (envelope: Envelope) => {
+  const snapshot = envelope.payload as unknown as EmotionSnapshot;
+  if (!snapshot?.pad) return;
+  ingestEmotion(snapshot);
+  dom.fallback.dataset.emotion = snapshot.label ?? 'neutral';
+});
+
+// 主动搭话：文案由后端角色卡模板给出，前端不自行生成
+client.on('proactive.speak', (envelope: Envelope) => {
+  const payload = envelope.payload as {
+    text?: string;
+    emotion_label?: string;
+  };
+  if (!payload.text) return;
+  dom.fallback.dataset.emotion = payload.emotion_label ?? 'lonely';
+  if (live2d.isReady) {
+    cues.dispatch({ emotion_label: payload.emotion_label ?? 'lonely' });
+  }
+  const bubble = appendBubble('assistant', payload.text);
+  const tag = document.createElement('span');
+  tag.className = 'emotion-tag';
+  tag.textContent = payload.emotion_label ?? 'lonely';
+  bubble.appendChild(tag);
 });
 
 client.on('sys.error', (envelope: Envelope) => {
@@ -329,6 +370,43 @@ function appendBubble(role: 'user' | 'assistant' | 'error', text = ''): HTMLElem
   dom.log.appendChild(bubble);
   dom.log.scrollTop = dom.log.scrollHeight;
   return bubble;
+}
+
+let greetingShown = false;
+
+/** 离线重逢开场白：取走后立即落库，避免重连时反复播放。 */
+async function showPendingGreeting(): Promise<void> {
+  if (greetingShown) return;
+  greetingShown = true;
+  try {
+    const response = await fetch('/api/v1/emotion/greeting/consume', {
+      method: 'POST',
+      headers: apiHeaders,
+    });
+    if (!response.ok) return;
+    const data = (await response.json()) as { greeting?: string | null; text?: string | null };
+    if (!data.text) return;
+    const bubble = appendBubble('assistant', data.text);
+    const tag = document.createElement('span');
+    tag.className = 'emotion-tag';
+    tag.textContent = data.greeting ?? 'reunion';
+    bubble.appendChild(tag);
+  } catch (error) {
+    console.warn('[emotion] greeting consume failed', error);
+  }
+}
+
+async function loadEmotionHistoryFromApi(): Promise<void> {
+  try {
+    const response = await fetch('/api/v1/emotion/history?limit=600', {
+      headers: apiHeaders,
+    });
+    if (!response.ok) return;
+    const data = (await response.json()) as { history?: EmotionSnapshot[] };
+    if (data.history) loadEmotionHistory(data.history);
+  } catch (error) {
+    console.warn('[emotion] history load failed', error);
+  }
 }
 
 function setBusy(busy: boolean): void {
@@ -405,6 +483,7 @@ client.on('chat.agent_final', (envelope: Envelope) => {
 dom.input.focus();
 client.connect();
 void restoreWindowPosition();
+void loadEmotionHistoryFromApi();
 // 模型就绪后再显示窗口，避免白闪（Tauri 下窗口以 visible=false 启动）
 void bootModel().finally(() => {
   void shell.show().catch((error: unknown) => {

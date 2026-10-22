@@ -5,24 +5,41 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import __version__
-from .bootstrap import bootstrap
+from .bootstrap import CHARACTERS_DIR, bootstrap
+from .config.character_card import Persona
 from .config.llm_settings import LLMConfig, mask_key
 from .config.settings import Settings
 from .context import AppContext
+from .emotion.labels import load_catalog as load_label_catalog
+from .emotion.models import Stimulus, StimulusSource
+from .emotion.stimuli.catalog import load_catalog as load_stimulus_catalog
+from .emotion.transitions import load_transitions
 from .gateway.auth import is_authorized
 from .gateway.errors import ErrorCode
-from .gateway.protocol import PROTOCOL_VERSION
+from .gateway.protocol import (
+    PROTOCOL_VERSION,
+    EmotionUpdatePayload,
+    MessageType,
+    ProactiveSpeakPayload,
+    build_envelope,
+)
 from .gateway.ws import ConnectionManager, create_ws_router
 from .orchestration.live2d_binding import scan_live2d_models as _scan_live2d_models
 from .orchestration.live2d_binding import validate_binding
@@ -36,6 +53,26 @@ class LLMConfigPatch(BaseModel):
     api_key: str | None = None
     model: str | None = None
     disable_thinking: bool | None = None
+
+
+class StimulusRequest(BaseModel):
+    tag: str = Field(min_length=1)
+    magnitude: float = Field(default=1.0, ge=0.0, le=3.0)
+    preferred_label: str | None = None
+
+
+class AdvanceRequest(BaseModel):
+    seconds: float = Field(gt=0.0, le=30 * 24 * 3600)
+
+
+class PersonaPatch(BaseModel):
+    reactivity: dict[str, float] | None = None
+    decay_multiplier: float | None = Field(default=None, gt=0.1, le=5.0)
+    refractory_seconds: float | None = Field(default=None, ge=0.0, le=120.0)
+    dominance_recovery: float | None = Field(default=None, ge=0.0, le=0.1)
+    baseline_mood: dict[str, float] | None = None
+    label_bias: dict[str, float] | None = None
+    forbidden_labels: list[str] | None = None
 
 
 def _llm_view(config: LLMConfig) -> dict[str, Any]:
@@ -55,12 +92,56 @@ def scan_live2d_models(root: Path) -> list[dict[str, Any]]:
     return _scan_live2d_models(root)
 
 
+def _envelope(env_type: str, payload: Any, turn_id: str | None = None) -> dict[str, Any]:
+    data = payload.model_dump() if hasattr(payload, "model_dump") else payload
+    return build_envelope(env_type, data, turn_id=turn_id).model_dump(mode="json")
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     cfg = settings or Settings()
     ctx: AppContext = bootstrap(cfg)
     manager = ConnectionManager()
 
-    app = FastAPI(title="Mochi Server", version=__version__)
+    async def broadcast_emotion(snapshot: Any) -> None:
+        if manager.count == 0:
+            return
+        payload = EmotionUpdatePayload.model_validate(snapshot.to_payload())
+        await manager.broadcast(_envelope(MessageType.EMOTION_UPDATE, payload))
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        unsubscribe = ctx.emotion.subscribe(broadcast_emotion)
+        await ctx.emotion.start()
+
+        async def proactive_loop() -> None:
+            while True:
+                await asyncio.sleep(15.0)
+                if manager.count == 0:
+                    continue
+                try:
+                    intent = ctx.emotion.poll_proactive()
+                    if intent is not None:
+                        payload = ProactiveSpeakPayload(
+                            text=intent.text,
+                            emotion_label=intent.label,
+                            kind=intent.kind,
+                        )
+                        await manager.broadcast(_envelope(MessageType.PROACTIVE_SPEAK, payload))
+                        log.info("proactive speak kind=%s", intent.kind)
+                except Exception as exc:  # noqa: BLE001 - 主动搭话失败不影响对话
+                    log.warning("proactive loop error: %s", exc)
+
+        proactive_task = asyncio.create_task(proactive_loop(), name="proactive")
+        try:
+            yield
+        finally:
+            proactive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await proactive_task
+            unsubscribe()
+            await ctx.emotion.stop()
+
+    app = FastAPI(title="Mochi Server", version=__version__, lifespan=lifespan)
     app.state.ctx = ctx
     app.state.manager = manager
 
@@ -77,6 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "protocol": PROTOCOL_VERSION,
             "uptime_s": round(time.time() - ctx.started_at, 3),
             "connections": manager.count,
+            "emotion": ctx.emotion.state.label,
         }
 
     @app.get("/api/v1/sys/info", dependencies=[Depends(require_token)])
@@ -115,9 +197,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if base_url is not None:
             parsed = urlparse(base_url)
             if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                raise HTTPException(
-                    status_code=400, detail="base_url 必须是 http(s)://host 形式"
-                )
+                raise HTTPException(status_code=400, detail="base_url 必须是 http(s)://host 形式")
             base_url = base_url.rstrip("/")
 
         api_key = patch.api_key.strip() if patch.api_key is not None else None
@@ -158,7 +238,144 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         report = validate_binding(ctx.characters.current, models)
         return report.to_payload()
 
-    app.include_router(create_ws_router(cfg, manager, __version__, ctx.orchestrator))
+    # ── 情感引擎调试 API（T3-01 / T3-18）──
+    @app.get("/api/v1/emotion/state", dependencies=[Depends(require_token)])
+    async def emotion_state() -> dict[str, Any]:
+        return {
+            "state": ctx.emotion.snapshot().to_payload(),
+            "frozen": ctx.emotion.frozen,
+            "character": ctx.characters.current.id,
+        }
+
+    @app.get("/api/v1/emotion/history", dependencies=[Depends(require_token)])
+    async def emotion_history(limit: int = 600) -> dict[str, Any]:
+        items = ctx.emotion.history(max(1, min(limit, 5000)))
+        return {"history": items, "count": len(items)}
+
+    @app.get("/api/v1/emotion/catalog", dependencies=[Depends(require_token)])
+    async def emotion_catalog() -> dict[str, Any]:
+        labels = load_label_catalog()
+        stimuli = load_stimulus_catalog()
+        transitions = load_transitions()
+        return {
+            "labels": [
+                {
+                    "name": label.name,
+                    "pad": {
+                        "valence": label.valence,
+                        "arousal": label.arousal,
+                        "dominance": label.dominance,
+                    },
+                    "radius": label.radius,
+                    "tau": label.tau,
+                    "tts": label.tts,
+                    "style": list(label.style),
+                }
+                for label in labels.labels
+            ],
+            "high_intensity_labels": sorted(labels.high_intensity_labels),
+            "stimuli": [
+                {
+                    "tag": item.tag,
+                    "category": item.category,
+                    "dval": item.dval,
+                    "darousal": item.darousal,
+                    "ddominance": item.ddominance,
+                    "habituate": item.habituate,
+                }
+                for item in stimuli.defs.values()
+            ],
+            "persona": ctx.characters.current.persona.model_dump(mode="json"),
+            "transitions": [
+                {
+                    "from": sorted(rule.sources),
+                    "to": rule.target,
+                    "guards": [str(guard.get("name", "")) for guard in rule.guards],
+                }
+                for rule in transitions.rules
+            ],
+            "blocked_direct": [list(pair) for pair in sorted(transitions.blocked_direct)],
+        }
+
+    @app.post("/api/v1/emotion/stimulus", dependencies=[Depends(require_token)])
+    async def inject_stimulus(body: StimulusRequest) -> dict[str, Any]:
+        definition = load_stimulus_catalog().get(body.tag)
+        if definition is None:
+            raise HTTPException(status_code=400, detail=f"unknown stimulus: {body.tag}")
+        stimulus = Stimulus(
+            source=StimulusSource.SYSTEM,
+            tag=body.tag,
+            magnitude=body.magnitude,
+            dval=definition.dval,
+            darousal=definition.darousal,
+            ddominance=definition.ddominance,
+            confidence=1.0,
+            note="dev_panel",
+        )
+        snapshot = await ctx.emotion.apply_stimulus(
+            stimulus,
+            preferred_label=body.preferred_label or definition.label_override,
+        )
+        return snapshot.to_payload()
+
+    @app.post("/api/v1/emotion/advance", dependencies=[Depends(require_token)])
+    async def advance_emotion(body: AdvanceRequest) -> dict[str, Any]:
+        snapshot = ctx.emotion.advance(body.seconds)
+        return snapshot.to_payload()
+
+    @app.patch("/api/v1/emotion/persona", dependencies=[Depends(require_token)])
+    async def patch_persona(patch: PersonaPatch) -> dict[str, Any]:
+        card = ctx.characters.current
+        merged = card.persona.model_dump(mode="json")
+        for key, value in patch.model_dump(exclude_none=True).items():
+            merged[key] = value
+        card.persona = Persona.model_validate(merged)
+        ctx.emotion.set_card(card)
+        return {"persona": card.persona.model_dump(mode="json")}
+
+    @app.post("/api/v1/emotion/persona/save", dependencies=[Depends(require_token)])
+    async def save_persona() -> dict[str, Any]:
+        card = ctx.characters.current
+        path = CHARACTERS_DIR / f"{card.id}.yaml"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"card not found: {card.id}")
+        backup = path.with_suffix(".yaml.bak")
+        backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        path.write_text(
+            yaml.safe_dump(card.model_dump(mode="json"), allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        return {"saved": str(path), "backup": str(backup)}
+
+    @app.post("/api/v1/emotion/greeting/consume", dependencies=[Depends(require_token)])
+    async def consume_greeting() -> dict[str, Any]:
+        greeting = ctx.emotion.consume_greeting()
+        return {"greeting": greeting, "text": _greeting_text(ctx, greeting)}
+
+    @app.get("/api/v1/emotion/export", dependencies=[Depends(require_token)])
+    async def export_emotion(limit: int = 1200) -> JSONResponse:
+        payload = {
+            "version": 1,
+            "exported_at": time.time(),
+            "character": ctx.characters.current.id,
+            "persona": ctx.characters.current.persona.model_dump(mode="json"),
+            "state": ctx.emotion.snapshot().to_payload(),
+            "history": ctx.emotion.history(max(1, min(limit, 5000))),
+        }
+        return JSONResponse(
+            content=payload,
+            headers={"Content-Disposition": 'attachment; filename="mochi-emotion-trace.json"'},
+        )
+
+    app.include_router(
+        create_ws_router(
+            cfg,
+            manager,
+            __version__,
+            ctx.orchestrator,
+            emotion=ctx.emotion,
+        )
+    )
 
     # Live2D 模型静态资源（本地存放，不入库；前端经 Vite proxy 同源访问）
     live2d_dir = cfg.data_dir / "live2d"
@@ -166,3 +383,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.mount("/live2d", StaticFiles(directory=str(live2d_dir)), name="live2d")
         log.info("live2d static mounted: %s", live2d_dir)
     return app
+
+
+def _greeting_text(ctx: AppContext, greeting: str | None) -> str | None:
+    if greeting is None:
+        return None
+    lines = ctx.characters.current.persona.greetings
+    return lines.get(greeting) or lines.get("long_absence") or ctx.characters.current.greeting

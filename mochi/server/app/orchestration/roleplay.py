@@ -12,9 +12,13 @@ import logging
 import time
 
 from app.config.llm_settings import LLMSettingsService
+from app.emotion.engine import EmotionEngine
+from app.emotion.models import EmotionSnapshot
+from app.emotion.prompt_block import format_style_constraints
+from app.emotion.stimuli.text_analyzer import hint_from_payload
 from app.memory.context_builder import ContextBuilder
 from app.memory.short_term import ShortTermMemory
-from app.providers.base import LLMError
+from app.providers.base import LLMError, LLMProvider
 
 from .events import CuePayload, EventSink, FinalPayload
 from .mood_parser import MoodStreamParser
@@ -32,19 +36,47 @@ class RoleplayService:
         temperature: float,
         builder: ContextBuilder,
         history: ShortTermMemory,
+        emotion: EmotionEngine | None = None,
         max_tokens: int = 400,
     ) -> None:
         self._llm = llm
         self._temperature = temperature
         self._builder = builder
         self._history = history
+        self._emotion = emotion
         self._max_tokens = max_tokens
 
-    async def reply(self, turn: Turn, user_text: str, sink: EventSink) -> None:
+    @property
+    def provider(self) -> LLMProvider:
+        return self._llm.provider
+
+    async def reply(
+        self,
+        turn: Turn,
+        user_text: str,
+        sink: EventSink,
+        *,
+        emotion_snapshot: EmotionSnapshot | None = None,
+    ) -> None:
         started = time.perf_counter()
         first_token_ms: int | None = None
         parser = MoodStreamParser()
-        messages = self._builder.build(self._history.recent(), user_text)
+        frozen = emotion_snapshot
+        if frozen is None and self._emotion is not None:
+            frozen = self._emotion.snapshot()
+        emotion_block = None
+        if self._emotion is not None and frozen is not None:
+            # 一轮内表情/TTS 参数来自同一份不可变快照（不变量 I3）
+            emotion_block = (
+                self._emotion.prompt_block(frozen)
+                + "\n\n"
+                + format_style_constraints(self._emotion.style_constraints(frozen))
+            )
+        messages = self._builder.build(
+            self._history.recent(),
+            user_text,
+            emotion_block=emotion_block,
+        )
         # 每轮取一次配置快照：配置热更新后下一轮立即生效
         provider = self._llm.provider
         model = self._llm.config.model
@@ -110,28 +142,60 @@ class RoleplayService:
                 len(result.text),
                 result.parsed,
             )
-            # S2：把情绪建议映射成 Live2D 表现指令，先于字幕定稿推送
-            cue = map_emotion(result.emotion)
-            await sink.cue(
-                turn.id,
-                CuePayload(
-                    emotion_label=cue.emotion_label,
-                    motion=cue.motion,
-                    priority=cue.priority,
-                    expression=cue.expression,
-                ),
-            )
+            # 表现指令来自 turn 开始时的冻结快照，LLM 建议只影响下一轮
+            if self._emotion is not None and frozen is not None:
+                cue = self._emotion.map_to_presentation(frozen)
+                await sink.cue(
+                    turn.id,
+                    CuePayload(
+                        emotion_label=cue.emotion_label,
+                        motion=cue.motion,
+                        priority=cue.priority,
+                        expression=cue.expression,
+                        expression_weight=cue.expression_weight,
+                        secondary_expression=cue.secondary_expression,
+                        secondary_weight=cue.secondary_weight,
+                        auto_release_ms=cue.auto_release_ms,
+                        tts=cue.tts.to_dict(),
+                        params=cue.params,
+                        style_hints=list(cue.style_hints),
+                    ),
+                )
+            else:
+                legacy = map_emotion(result.emotion)
+                await sink.cue(
+                    turn.id,
+                    CuePayload(
+                        emotion_label=legacy.emotion_label,
+                        motion=legacy.motion,
+                        priority=legacy.priority,
+                        expression=legacy.expression,
+                    ),
+                )
+            final_emotion = result.emotion
+            if frozen is not None:
+                # 字幕标签也来自引擎快照，避免"画面 shy、标签 angry"（I3）
+                final_emotion = {
+                    "label": frozen.label,
+                    "secondary_label": frozen.secondary_label,
+                    "intensity": round(frozen.intensity, 3),
+                }
             await sink.final(
                 turn.id,
                 FinalPayload(
                     text=result.text,
                     route="chat",
-                    emotion=result.emotion,
+                    emotion=final_emotion,
                     action=result.action,
                     first_token_ms=first_token_ms,
                     latency_ms=latency_ms,
                 ),
             )
+            if self._emotion is not None and result.emotion:
+                # 建议在定稿后裁决，只影响下一轮的状态
+                await self._emotion.apply_llm_hint(
+                    hint_from_payload({"emotion": result.emotion})
+                )
         except LLMError as exc:
             latency_ms = int((time.perf_counter() - started) * 1000)
             log.warning(

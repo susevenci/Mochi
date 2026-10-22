@@ -23,7 +23,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | S0 | 环境骨架：后端 / 契约链路 / 前端 / 桌面壳 | ✅ 11/12（剩 T0-10 的穿透与麦克风，归 S5/S4） |
 | S1 | 对话闭环：Provider、角色卡、纯净上下文、流式双通道解析、WS、前端 UI | ✅ 13/13 |
 | S2 | Live2D 呈现：待机/视线/表情叠加/动作队列/口型/交互/窗口记忆 | ✅ 14/14 |
-| S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ⏳ 下一步 |
+| S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ✅ 20/20（MVP 达成） |
 | S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ⏳ |
 | S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ⏳ |
 | S6 | 记忆 / Skills / 工具 | ⏳ |
@@ -36,7 +36,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | **M0 可连** | 三层空壳跑通 | ✅ | WS 握手 + 断线重连；壳窗口 420×560 透明置顶 |
 | **M1 可聊** | 有人设的流式对话 | ✅ | 首字 0.10s（探针）/ 185–966ms（含上下文）；`/role set` 热切换 |
 | **M2 可动** | 会呼吸的 Live2D | ✅ | 静置不静止（Δbreath=0.724 / Δbody=1.119）；6/6 自检全绿；口型电平 0.79 |
-| **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ⏳ | S3 目标 |
+| **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ✅ | PAD 曲线 + 连夸递减 + 人格差异 + 1h lonely + 8h 重逢；139 tests / 87% emotion coverage |
 
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
@@ -45,7 +45,11 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 - Live2D：`qiye_10` 49 个动作组 + 呼吸/眨眼/身体微摆 + 鼠标视线跟随 + 点击摸头/戳身体 + 衣柜热切换；无动作模型自动退回表情
 - 口型：振幅法跑通（模型 `Groups.LipSync` → `ParamMouthOpenY_SD*`），测试音下开合度 0 → 0.79
 - 桌面壳：透明 + 置顶 + 不占任务栏；位置记忆存 `settings.json`，重启后精确回到原坐标
-- 质量：`ruff` 0 问题 / `mypy` 0 issue（43 文件）/ `pytest` 64 passed / `tsc` + `vite build` 通过
+- 情感：连续夸奖 3 次增幅递减（≈1 : 0.7 : 0.49）；同句"你真笨"傲娇进 `hurt`、元气进 `amused`；关心进 `shy`
+- 情感：1 小时无互动转 `lonely`；`advance(8h)` 触发 `long_absence` 重逢且 valence 为正；SP4 五项指标全部健康
+- 质量：`ruff` 0 问题 / `mypy` 0 issue（66 文件）/ `pytest 139 passed` / `emotion/` 覆盖率 87% / `tsc` + `vite build` 通过
+
+![S3 情感调试面板：PAD 曲线、标签时间轴、刺激注入器、状态机与触发源](docs/images/s3-emotion-panel.png)
 
 ## 架构
 
@@ -101,6 +105,58 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 
 **验收工具**：右上角锤子按钮打开调试面板，可看口型电平、手动触发动作/表情，并“一键 S2 自检”（模型/动作/待机/眨眼/口型/冷却去重 6 项），比录屏更易回归。
 
+## 情感引擎（S3 / MVP）
+
+情绪不是 prompt 里的形容词，而是后端一个**持续演化、可观测、可裁决**的状态量：
+
+```
+用户文本 / 交互 / 时间节律 / 任务结果 / LLM 建议
+        │
+        ▼
+Stimulus ──▶ 人格调制 ──▶ 软饱和 ──▶ 标签推导（16 标签）──▶ 状态机 ──▶ 表现映射
+        │                                      │
+        └──────────── 250ms tick 衰减 ─────────┘
+```
+
+| 能力 | 实现 |
+| --- | --- |
+| PAD 快变量 + mood 慢变量 | `emotion/decay.py`：指数回归、1h 吸收、1d 回归人格基线、静默期噪声 |
+| 16 标签 + 混合情绪 | `emotion/data/labels.yaml` + 加权高斯距离；前二差 <0.12 产出 `secondary_label` |
+| 状态机 | 不应期、最小强度门槛、禁止直跳（`hurt→excited` 必须经 `neutral`）、自然平复 |
+| 人格调制 | 反应增益 × 心境偏差 × 亲密/信任；角色卡可配 `reactivity` / `label_bias` / 刺激重解释 |
+| 共情反转 | 用户说"我好累"→ `worried`，不跟着一起难过 |
+| 重复刺激递减 | 同 tag 60s 内按 `0.7^n` 递减 |
+| 时间旅行 | `engine.advance(seconds)` 不等待真实时间；离线衰减 + 重逢开场白 |
+| 主动性 | 1h ≤3 次、间隔 ≥10min、quiet_hours 静默，文案来自角色卡模板 |
+| 持久化 | `store/emotion_repo.py`（原子 JSON；S6 替换为 SQLite，接口不变） |
+| 可观测 | `emotion.update` / `performance.cue` / 调试 API / DevPanel / 轨迹导出 |
+
+**三层编排的接入点**（`orchestration/`）：用户输入先施加刺激 → Roleplay 注入【内心状态】与表达约束 → 流式回复结束后裁决 LLM 情绪建议（只影响下一轮）→ 表现 cue 使用 turn 开始时的冻结快照（不变量 I3）。
+
+**调试面板**（锤子按钮 → “情感 / PAD”）：
+
+- 三条 PAD 曲线 + 标签时间轴（悬停看触发源）
+- 刺激注入器、1h/8h 时间旅行、轨迹导出
+- 人格滑杆（反应增益/衰减/不应期/支配恢复）即时生效，可一键写回角色卡 YAML
+- 状态机可选转移与最近 6 条触发源（含实际 PAD 增量）
+
+![8 小时时间旅行后的重逢状态（pending_greeting=long_absence）](docs/images/s3-emotion-reunion.png)
+
+**CLI 原型**（不依赖前端/LLM）：
+
+```powershell
+cd mochi\server
+..\.venv\python.exe -m app.emotion.repl
+# 或脚本模式
+..\.venv\python.exe -m app.emotion.repl --script "inject user_praise`nadvance 3600`nstate`nquit"
+```
+
+**SP4 轨迹分析**（200 次随机刺激，5 项指标）：
+
+```powershell
+& scripts\py.ps1 scripts\analyze_trajectory.py --simulate 200 --seed 42
+```
+
 ## 目录结构
 
 ```
@@ -108,11 +164,13 @@ mochi/
 ├─ server/app/            # FastAPI 后端
 │  ├─ gateway/            # WS 信封、鉴权、心跳、对话分发
 │  ├─ orchestration/      # Decision / Roleplay / Turn 注册表 / 双通道解析 / 表现映射 / 模型绑定校验
+│  ├─ emotion/            # PAD 引擎、16 标签、状态机、人格、刺激源、主动性、调试 API/CLI
+│  ├─ store/              # 情绪持久化（S6 扩展为 SQLite）
 │  ├─ providers/          # OpenAI 兼容 Provider（多模型分工、重试、用量）
 │  ├─ memory/             # 上下文预算、短期窗口
 │  ├─ config/             # Settings、角色卡、settings.json
-│  └─ utils/              # ULID、数学原语
-├─ server/tests/          # 64 项测试（协议 / 解析器 / 编排 / 角色扮演 / 配置 / 模型绑定）
+│  └─ utils/              # ULID、数学原语、时钟
+├─ server/tests/          # 139 项测试（协议 / 解析器 / 编排 / 角色扮演 / 配置 / 情感 / 模型绑定）
 ├─ frontend/src/          # Vite + TS + pixi
 │  ├─ live2d/             # 舞台 + 待机/视线/动作/表情/口型/交互控制器（零框架依赖）
 │  └─ ui/                 # Preact 面板：LLM 配置 / 衣柜 / S2 调试与自检
@@ -140,7 +198,7 @@ docs/wiki/                # 设计与实现 Wiki（架构、协议、Live2D 管�
 | binutils | `dlltool` / `windres`（由 `scripts/setup_binutils.ps1` 准备） | 仅桌面壳 |
 | WebView2 Runtime | Win10/11 自带或单独安装 | 仅桌面壳 |
 
-一条命令体检全部依赖：`.venv\Scripts\python.exe mochi\scripts\doctor.py`（八项全绿）。
+一条命令体检全部依赖：`mochi\scripts\py.ps1 mochi\scripts\doctor.py`（八项全绿）。
 
 ## 快速开始
 
@@ -155,11 +213,15 @@ powershell -ExecutionPolicy Bypass -File mochi\scripts\dev.ps1
 
 ```powershell
 cd mochi
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+# 任意一种 Python 3.11+ 环境；conda 与 venv 两种布局都被 scripts\py.ps1 支持
+conda create -p .venv python=3.12 -y        # 或：python -m venv .venv
+& scripts\py.ps1 -m pip install -r requirements.txt
 copy .env.example .env          # 填 LLM_BASE_URL / LLM_MODEL_CHAT / LLM_API_KEY
-.venv\Scripts\python.exe -m uvicorn --app-dir server app.main:create_app --factory --host 127.0.0.1 --port 8765
+& scripts\py.ps1 -m uvicorn --app-dir server app.main:create_app --factory --host 127.0.0.1 --port 8765
 ```
+
+> `scripts\py.ps1` 会自动找到 `mochi\.venv`（conda 布局为 `.venv\python.exe`，venv 布局为 `.venv\Scripts\python.exe`），
+> 找不到时回落到 PATH 上的 `python`。后续所有命令都用它，避免路径写法各处不一。
 
 ### 2. 前端
 
@@ -189,9 +251,10 @@ powershell -ExecutionPolicy Bypass -File scripts\check_window.ps1        # 窗�
 ### 4. 冒烟与自检
 
 ```powershell
-.venv\Scripts\python.exe mochi\scripts\doctor.py                        # 环境体检（8 项）
-.venv\Scripts\python.exe mochi\scripts\smoke_ws.py                      # WS 握手
-.venv\Scripts\python.exe mochi\scripts\smoke_chat.py --scenario memory  # 真实对话
+& scripts\py.ps1 scripts\doctor.py                        # 环境体检（8 项）
+& scripts\py.ps1 scripts\smoke_ws.py                      # WS 握手
+& scripts\py.ps1 scripts\smoke_chat.py --scenario memory  # 真实对话
+& scripts\py.ps1 scripts\analyze_trajectory.py --simulate 200 --seed 42
 ```
 
 前端右上角 **锤子按钮 → 运行 S2 自检**（6 项，约 12s），是渲染层的可复跑验收。
@@ -201,13 +264,21 @@ powershell -ExecutionPolicy Bypass -File scripts\check_window.ps1        # 窗�
 ### 质量门禁
 
 ```powershell
-.venv\Scripts\python.exe -m pytest mochi
-.venv\Scripts\python.exe -m ruff check mochi\server mochi\scripts --config mochi\pyproject.toml
-.venv\Scripts\python.exe -m mypy mochi\server\app mochi\scripts --config-file mochi\pyproject.toml
-cd mochi\frontend; npm run build                                # tsc --noEmit + vite build
-.venv\Scripts\python.exe mochi\scripts\export_schema.py        # 改契约后重新导出
-node mochi\scripts\gen-types.mjs                               # 再生成前端类型
+# 在仓库根目录一键跑全套（quick=任务簇，full=阶段末；产物写入 docs/evidence/）
+powershell -ExecutionPolicy Bypass -File mochi\scripts\gate.ps1 -Quick
+powershell -ExecutionPolicy Bypass -File mochi\scripts\gate.ps1 -Stage S3
+
+# 等价的手工命令（在 mochi/ 下）
+cd mochi
+& scripts\py.ps1 -m pytest
+& scripts\py.ps1 -m ruff check server scripts --config pyproject.toml
+& scripts\py.ps1 -m mypy server\app scripts --config-file pyproject.toml
+npm.cmd --prefix frontend run build                             # tsc --noEmit + vite build
+& scripts\py.ps1 scripts\export_schema.py                      # 改契约后重新导出
+node scripts\gen-types.mjs                                      # 再生成前端类型
 ```
+
+> CI（`.github/workflows/quality.yml`）在每次 push 上跑同一套检查，含契约漂移校验（不变量 I4）。
 
 ## 技术栈
 

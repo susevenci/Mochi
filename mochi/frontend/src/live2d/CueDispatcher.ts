@@ -1,5 +1,6 @@
 import type { ExpressionController } from './ExpressionController';
 import type { IdleController } from './IdleController';
+import type { Live2DStage } from './Live2DStage';
 import type { MotionController, MotionPriority } from './MotionController';
 
 export interface CueInput {
@@ -7,6 +8,12 @@ export interface CueInput {
   priority?: string;
   emotion_label?: string;
   expression?: string | null;
+  expression_weight?: number;
+  secondary_expression?: string | null;
+  secondary_weight?: number;
+  auto_release_ms?: number | null;
+  tts?: Record<string, number> | null;
+  params?: Record<string, number> | null;
 }
 
 /** 瞬时情绪的表现自动释放时长（计划书阶段 3 验收：surprised 2.5s 内释放） */
@@ -34,6 +41,7 @@ export class CueDispatcher {
     private readonly motion: MotionController,
     private readonly expression: ExpressionController,
     private readonly idle: IdleController,
+    private readonly stage?: Live2DStage,
   ) {}
 
   dispatch(cue: CueInput): void {
@@ -57,13 +65,25 @@ export class CueDispatcher {
     // 表情通道：后端点名了就用点名的，没点名时用同名表情兜底
     const expressionName = cue.expression || (this.hasExpression(label) ? label : null);
     if (expressionName) {
-      const release = TRANSIENT_RELEASE_MS[label];
-      this.expression.play(expressionName, 1, {
+      const release = cue.auto_release_ms ?? TRANSIENT_RELEASE_MS[label];
+      this.expression.play(expressionName, cue.expression_weight ?? 1, {
         autoReleaseMs: release,
       });
     }
+    if (cue.secondary_expression && this.hasExpression(cue.secondary_expression)) {
+      this.expression.play(cue.secondary_expression, cue.secondary_weight ?? 0.3, {
+        fadeMs: 300,
+      });
+    }
 
-    if (!played && !expressionName) {
+    // 参数兜底（没有 .exp3.json 的模型）：只写一次底值，释放交给表达式/待机
+    if (cue.params && this.stage) {
+      for (const [id, value] of Object.entries(cue.params)) {
+        this.stage.setParameter(id, value);
+      }
+    }
+
+    if (!played && !expressionName && !cue.params) {
       console.debug('[cue] no playable channel for', label, cue.motion);
     }
   }

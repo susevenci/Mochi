@@ -16,6 +16,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from app.config.settings import Settings
+from app.emotion.engine import EmotionEngine
 from app.gateway.auth import is_authorized
 from app.gateway.errors import ErrorCode, error_envelope
 from app.gateway.protocol import (
@@ -102,6 +103,13 @@ class WSSink:
             motion=payload.motion,
             expression=payload.expression,
             priority=payload.priority,
+            expression_weight=payload.expression_weight,
+            secondary_expression=payload.secondary_expression,
+            secondary_weight=payload.secondary_weight,
+            auto_release_ms=payload.auto_release_ms,
+            tts=payload.tts,
+            params=payload.params,
+            style_hints=payload.style_hints,
         )
         await self._ws.send_json(_envelope(MessageType.PERFORMANCE_CUE, body, turn_id))
 
@@ -139,6 +147,7 @@ async def _dispatch(
     ws: WebSocket,
     server_version: str,
     orchestrator: Orchestrator | None,
+    emotion: EmotionEngine | None = None,
 ) -> None:
     """单条消息的分发。任何异常都转成 ``sys.error``，绝不中断连接。"""
     try:
@@ -165,7 +174,11 @@ async def _dispatch(
         return
 
     if env.type == MessageType.SYS_HELLO:
-        ack = SysHelloAckPayload(server_version=server_version, server_time=time.time())
+        ack = SysHelloAckPayload(
+            server_version=server_version,
+            server_time=time.time(),
+            emotion=emotion.snapshot().to_payload() if emotion is not None else None,
+        )
         await ws.send_json(_envelope(MessageType.SYS_HELLO_ACK, ack, env.turn_id))
         return
     if env.type == MessageType.SYS_PING:
@@ -174,9 +187,7 @@ async def _dispatch(
         return
     if env.type == MessageType.CHAT_USER_INPUT:
         if orchestrator is None:
-            await ws.send_json(
-                error_envelope(ErrorCode.INTERNAL, detail="orchestrator not ready")
-            )
+            await ws.send_json(error_envelope(ErrorCode.INTERNAL, detail="orchestrator not ready"))
             return
         await _handle_chat(env, ws, orchestrator)
         return
@@ -194,7 +205,6 @@ async def _dispatch(
                 error_envelope(ErrorCode.BAD_ENVELOPE, detail=detail, turn_id=env.turn_id)
             )
             return
-        # S2 只做接收与取证；S3 的刺激源 2（T3-10）会在此接入 EmotionEngine
         log.info(
             "interaction type=%s area=%s count=%d at=(%.0f,%.0f)",
             event.type,
@@ -203,11 +213,11 @@ async def _dispatch(
             event.x,
             event.y,
         )
+        if emotion is not None:
+            await emotion.apply_interaction(event.type, count=event.count, area=event.area)
         return
 
-    await ws.send_json(
-        error_envelope(ErrorCode.UNKNOWN_TYPE, detail=env.type, turn_id=env.turn_id)
-    )
+    await ws.send_json(error_envelope(ErrorCode.UNKNOWN_TYPE, detail=env.type, turn_id=env.turn_id))
 
 
 def create_ws_router(
@@ -215,6 +225,7 @@ def create_ws_router(
     manager: ConnectionManager,
     server_version: str,
     orchestrator: Orchestrator | None = None,
+    emotion: EmotionEngine | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -230,7 +241,7 @@ def create_ws_router(
         try:
             while True:
                 raw = await ws.receive_text()
-                await _dispatch(raw, ws, server_version, orchestrator)
+                await _dispatch(raw, ws, server_version, orchestrator, emotion)
         except WebSocketDisconnect:
             pass
         finally:

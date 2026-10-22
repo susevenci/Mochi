@@ -3,11 +3,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _default_data_dir() -> Path:
+    # 开发态仓库自带 data/（Live2D 模型、settings.json）；安装态回落到 AppData
+    dev_data = PROJECT_ROOT / "data"
+    if dev_data.is_dir():
+        return dev_data
     appdata = os.environ.get("APPDATA")
     base = Path(appdata) if appdata else Path.home() / ".config"
     return base / "Mochi"
@@ -42,6 +48,14 @@ class Settings(BaseSettings):
 
     # ── 角色（S1 起使用）──
     character: str = "tsundere"
+
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def _resolve_blank_data_dir(cls, value: object) -> object:
+        """`.env` 里 DATA_DIR= 留空时应使用默认目录，而不是当前工作目录。"""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return _default_data_dir()
+        return value
 
     @property
     def db_path(self) -> Path:

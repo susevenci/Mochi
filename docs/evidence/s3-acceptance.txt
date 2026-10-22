@@ -1,0 +1,45 @@
+S3 情感引擎验收证据
+====================
+日期: 2026-10-22
+环境: Windows 10 / Python 3.12.15 / Node 24 / Edge headless (Playwright)
+
+一、质量门禁
+- pytest: 139 passed
+- emotion/ coverage: 87.04%（要求 ≥80%）
+- ruff: 0 errors
+- mypy: 0 issues（66 source files）
+- frontend: tsc --noEmit + vite build 通过
+- contract: shared/schema/protocol.schema.json + frontend/src/types/protocol.ts 已重新生成
+
+二、SP4 五项指标（200 次刺激，seed=42）
+{
+  "points": 266,
+  "duration_hours": 4.219,
+  "label_switches": 17,
+  "switch_rate_per_hour": 4.03,
+  "switch_rate_healthy": true,
+  "mean_dwell_seconds": 325.3,
+  "max_slope_per_second": 0.194,
+  "max_slope_healthy": true,
+  "repeat_ratio_median": 0.798,
+  "repeat_ratio_samples": 25,
+  "silent_activity_mean": 0.1155,
+  "silent_activity_healthy": true,
+  "labels_seen": [
+    "angry",
+    "neutral",
+    "worried"
+  ]
+}
+
+三、浏览器结构自检（Edge headless）
+- 点击“情感与表现调试面板” → `.debug-panel` 存在，tab=表现/Live2D、情感/PAD
+- 情感 tab：`.emotion-chart` 三条 polyline、`.emotion-timeline`、34 个刺激选项
+- 注入 3 次 user_praise：标签 neutral → happy + affectionate，图表点 9，时间轴段 2
+- 8h 时间旅行：pending_greeting=long_absence，valence +0.26（深夜时段标签 sleepy，属昼夜节律预期）
+- 截图: docs/images/s3-emotion-panel.png / s3-emotion-reunion.png
+
+四、CLI
+- `cd mochi/server && python -m app.emotion.repl --script "inject user_praise\nadvance 3601\nstate\nquit"` 正常输出状态
+
+备注: Qoder 内置浏览器 surface 不可见，截图改用 Edge headless + Playwright（仅取证，不进入运行时依赖）。

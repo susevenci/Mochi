@@ -101,7 +101,9 @@ def test_interaction_event_is_accepted_silently(client: TestClient) -> None:
                 {"type": "pat_head", "area": "head", "count": 3, "x": 120, "y": 80},
             )
         )
-        # 紧接着的握手必须正常收到应答，说明连接没被弄脏
+        # 互动会先推一条 emotion.update；随后 ping 必须正常回应，证明连接仍活
+        update = ws.receive_json()
+        assert update["type"] == "emotion.update"
         ws.send_json(_env("sys.ping", {"ts": 1.0}))
         msg = ws.receive_json()
         assert msg["type"] == "sys.pong"

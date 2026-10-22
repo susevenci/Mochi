@@ -886,45 +886,45 @@ IDLE ──(按下录音)──▶ LISTENING ──(VAD 结束/松手)──▶ 
 
 ### 4.4 S3 情感引擎（7–10 d，20 项）★核心
 
-- [ ] **T3-01** `[BE/FE]` **CLI 原型 + DevPanel 曲线最小版（第 1 天交付）** · 1d ← T1-08
+- [x] **T3-01** `[BE/FE]` **CLI 原型 + DevPanel 曲线最小版（第 1 天交付）** · 1d ← T1-08
   - 产出 `python -m app.emotion.repl`（注入刺激/打印 PAD）+ `debug/PADChart.tsx` ｜ 验收：命令行注入 `user_praise` 能看到数值变化；前端能画出 3 条曲线（数据先来自 mock）
-- [ ] **T3-02** `[BE]` **情绪数据结构** · 0.5d ← T3-01
+- [x] **T3-02** `[BE]` **情绪数据结构** · 0.5d ← T3-01
   - 产出 `emotion/models.py`：`PAD` / `EmotionState`（frozen）/ `Stimulus` / `EmotionCause` / `EmotionSnapshot` / `StimulusSource` ｜ 验收：`StimulusSource` 10 值与计划书 6.5.5 完全一致（枚举快照单测）
-- [ ] **T3-03** `[BE]` **数学原语** · 0.5d ← T3-02
+- [x] **T3-03** `[BE]` **数学原语** · 0.5d ← T3-02
   - 产出 `utils/mathx.py`：`soft_step` / `soft_clamp` / `exp_decay` / `gaussian_score` ｜ 验收：原语 1、2 的必测用例全过（见 1.4.3）
-- [ ] **T3-04** `[BE]` **标签目录与推导** · 1d ← T3-03
+- [x] **T3-04** `[BE]` **标签目录与推导** · 1d ← T3-03
   - 产出 `emotion/data/labels.yaml`（16 标签）+ `emotion/labels.py` ｜ 验收：四种典型 PAD 推导出预期标签；前二差 <0.12 时产出 `secondary_label`；score<0.35 回落 `neutral`
-- [ ] **T3-05** `[BE]` **状态机与不应期** · 1d ← T3-04
+- [x] **T3-05** `[BE]` **状态机与不应期** · 1d ← T3-04
   - 产出 `emotion/data/transitions.yaml` + `emotion/transitions.py` ｜ 验收：三条约束（不应期/最小强度门槛/禁止直跳）各有单测；`hurt→excited` 必须经 `neutral`
-- [ ] **T3-06** `[BE]` **引擎外壳与 tick 循环** · 1d ← T3-04,T3-05
+- [x] **T3-06** `[BE]` **引擎外壳与 tick 循环** · 1d ← T3-04,T3-05
   - 产出 `emotion/engine.py`：队列 + 250ms tick + 时钟注入 + 广播节流 ｜ 验收：tick 抖动 P95 < 20ms；`emotion/` 下零处直接 `time.time()`
-- [ ] **T3-07** `[BE]` **持久化、离线衰减与时间旅行** · 1d ← T3-06
+- [x] **T3-07** `[BE]` **持久化、离线衰减与时间旅行** · 1d ← T3-06
   - 产出 `store/emotion_repo.py` + `apply_offline_decay()` + `engine.advance(seconds)` ｜ 验收：`advance(8*3600)` 后 `pending_greeting=="long_absence"`；重启状态不丢
-- [ ] **T3-08** `[BE]` **文本情感分析 Level 1（词典）** · 1d ← T3-02
+- [x] **T3-08** `[BE]` **文本情感分析 Level 1（词典）** · 1d ← T3-02
   - 产出 `emotion/stimuli/lexicon.py` + `text_analyzer.py` ｜ 验收：五类词典（正/负/悲伤/亲密/惊讶）+ 否定反转；50 条标注样本命中率 ≥ 60%
-- [ ] **T3-09** `[BE]` **Level 2 轻量 LLM 标注** · 0.5d ← T3-08
+- [x] **T3-09** `[BE]` **Level 2 轻量 LLM 标注** · 0.5d ← T3-08
   - 产出 强制 JSON 的 48-token 分类调用 ｜ 验收：仅在 Level 1 未命中且文本 >8 字时触发（日志可证）；坏 JSON 不影响主流程
-- [ ] **T3-10** `[BE]` **交互刺激与 habituation** · 0.5d ← T3-06,T2-08
+- [x] **T3-10** `[BE]` **交互刺激与 habituation** · 0.5d ← T3-06,T2-08
   - 产出 `emotion/stimuli/interaction.py` ｜ 验收：A/B/C 三类事件行为区分正确（C 类零 PAD 增量）；同 tag 连击 3 次幅度 ≈ 1:0.7:0.49
-- [ ] **T3-11** `[BE]` **共情反转** · 0.25d ← T3-08
+- [x] **T3-11** `[BE]` **共情反转** · 0.25d ← T3-08
   - 产出 `empathy_inversion` 配置规则 ｜ 验收：用户说"我好累"时标签为 `worried` 而非 `sad`（单测断言）
-- [ ] **T3-12** `[BE]` **人格调制** · 1d ← T3-04
+- [x] **T3-12** `[BE]` **人格调制** · 1d ← T3-04
   - 产出 `emotion/persona.py`：`modulate()` + reactivity + mood 偏差 + affinity/trust ｜ 验收：同句"你真笨"在傲娇/元气两卡上推导出不同标签（单测）
-- [ ] **T3-13** `[BE]` **表现映射与白名单** · 0.5d ← T3-04
+- [x] **T3-13** `[BE]` **表现映射与白名单** · 0.5d ← T3-04
   - 产出 `emotion/presentation.py` → `PresentationCue` ｜ 验收：非法表情名回落默认；权重按 `0.4 + 0.6×intensity`（单测断言）；`surprised` 带 `auto_release_seconds`
-- [ ] **T3-14** `[BE]` **Prompt 注入与风格约束** · 1d ← T3-06,T1-05
+- [x] **T3-14** `[BE]` **Prompt 注入与风格约束** · 1d ← T3-06,T1-05
   - 产出 `emotion/prompt_block.py` + `style_constraints()` 接入 Roleplay ｜ 验收：Roleplay 的 system prompt 中出现【内心状态】块（可打印对照）；风格约束随标签变化
-- [ ] **T3-15** `[BE]` **LLM 建议裁决** · 0.5d ← T3-06,T1-06
+- [x] **T3-15** `[BE]` **LLM 建议裁决** · 0.5d ← T3-06,T1-06
   - 产出 `apply_llm_hint()` 的 7 条拒绝规则（见 1.4.5） ｜ 验收：7 条规则各有单测；非法标签/超限 delta 均被正确拒绝或裁剪
-- [ ] **T3-16** `[BE]` **时间节律与随机扰动** · 1d ← T3-06
+- [x] **T3-16** `[BE]` **时间节律与随机扰动** · 1d ← T3-06
   - 产出 `stimuli/chronobiology.py` + `stimuli/random.py` + `data/spontaneous.yaml` ｜ 验收：切到 02:00 后 arousal 下降；噪声 σ 随 arousal 放大；静默 10 分钟 pad 有微小变化
-- [ ] **T3-17** `[BE]` **主动性与打扰预算** · 1d ← T3-16
+- [x] **T3-17** `[BE]` **主动性与打扰预算** · 1d ← T3-16
   - 产出 `emotion/proactive.py` + `proactive.speak` 推送 ｜ 验收：1h 内主动 ≤3 次、间隔 ≥10min；quiet_hours 内静默；滑杆 0 时完全不主动
-- [ ] **T3-18** `[FE]` **DevPanel 完整版** · 1.5d ← T3-06
+- [x] **T3-18** `[FE]` **DevPanel 完整版** · 1.5d ← T3-06
   - 产出 `LabelTimeline.tsx` / `StimulusInjector.tsx` / `PersonaSliders.tsx` / `StateMachineView.tsx` ｜ 验收：时间轴悬停显示 `EmotionCause`；滑杆改动立即生效；可一键写回角色卡
-- [ ] **T3-19** `[BE]` **情感引擎单测补齐** · 1d ← T3-01~T3-17
+- [x] **T3-19** `[BE]` **情感引擎单测补齐** · 1d ← T3-01~T3-17
   - 产出 `tests/unit/emotion/*` 七个文件 ｜ 验收：`emotion/` 覆盖率 ≥ 80%，含衰减/饱和/habituation/共情反转/不应期/人格差异边界用例
-- [ ] **T3-20** `[EVAL]` **轨迹分析与 SP4 指标** · 0.5d ← T3-06
+- [x] **T3-20** `[EVAL]` **轨迹分析与 SP4 指标** · 0.5d ← T3-06
   - 产出 `scripts/analyze_trajectory.py`（输出 3.4 节五项指标） ｜ 验收：200 次随机刺激序列的五项指标落在健康区间
 
 ### 4.5 S4 语音链路（5–7 d，13 项）
@@ -1244,6 +1244,53 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 | 拖拽移动窗口 | 恢复已验证（640,360 → 640,360），真实鼠标拖拽仍待人工 | 下次桌面壳实测时用鼠标拖一下，确认 `start_dragging` 与回写 |
 
 **质量门禁**：`pytest 64 passed` / `ruff 0` / `mypy 0`（43 文件）/ `tsc --noEmit` 通过 / `vite build` 通过
+
+---
+
+### 4.15 S3 实施进度（2026-10-22，MVP 达成）
+
+**完成度：S3 20/20 项全部落地**。情感引擎从工作区 WIP 补全为可独立测试、可接入编排、可观测与可调参的完整模块。
+
+#### 关键交付
+
+| 能力 | 证据 |
+| --- | --- |
+| 七个计算原语 + 16 标签 + 状态机 | `pytest 139 passed`；`emotion/` 覆盖率 **87%**；`test_mathx/decay/labels_transitions/persona` |
+| 引擎接入三层编排 | 输入先施加文本刺激 → Roleplay 注入【内心状态】+ 表达约束 → 回复后裁决 LLM 建议 → cue 使用 turn 冻结快照 |
+| 持久化 / 离线衰减 / 时间旅行 | `advance(3650)` → `lonely`；`advance(8h)` → `pending_greeting=long_absence` 且 valence 为正；重启后不丢状态 |
+| 人格差异 | 同句"你真笨"：傲娇 `hurt`（valence −0.69），元气 `amused`（valence +0.36）；关心 → `shy` |
+| 共情反转 | "我好累，今天真的撑不住了" → `worried` |
+| 主动性 | 1h ≤3 次、间隔 ≥10min、安静时段静默；`proactive.speak` 推送 |
+| 调试面板 | PAD 三曲线、标签时间轴、34 个刺激注入器、1h/8h 时间旅行、人格滑杆、状态机与触发源、轨迹导出 |
+| CLI / 轨迹分析 | `python -m app.emotion.repl`；`scripts/analyze_trajectory.py --simulate 200 --seed 42` |
+
+#### SP4 五项指标（seed=42，200 次刺激）
+
+| 指标 | 实测 | 健康区间 | 结论 |
+| --- | --- | --- | --- |
+| 标签切换率 | 4.03 次/h | 4–12 | ✅ |
+| 平均停留时长 | 325 s | ≈1.2×τ | ✅ |
+| 一阶差分极值 | 0.194 /s | <0.3 /s | ✅ |
+| 重复刺激衰减中位数 | 0.80 | ≈0.7 | ✅（含软饱和） |
+| 静默期活跃度 | 0.116 | >0.01 | ✅ |
+
+#### 验收取证
+
+- 面板截图：`docs/images/s3-emotion-panel.png`（happy + affectionate，PAD 曲线/时间轴/触发源）
+- 重逢截图：`docs/images/s3-emotion-reunion.png`（8h 时间旅行 → `pending_greeting=long_absence`）
+- 完整证据：`docs/evidence/s3-acceptance.txt`、`docs/evidence/s3-coverage.txt`
+- 浏览器结构自检：点击锤子按钮 → 情感/PAD tab → 面板含 `.emotion-chart` / `.emotion-timeline` / 34 个刺激选项；注入 3 次 `user_praise` 后标签从 `neutral` → `happy + affectionate`，图表点数 9。
+
+#### 已知偏差（不阻塞 MVP）
+
+| 项 | 现状 | 后续 |
+| --- | --- | --- |
+| 持久化实现 | S3 用原子 JSON（`JsonEmotionRepo`），接口按 Repo 协议预留 | S6 换成 SQLite 实现，引擎不改 |
+| Level 2 文本标注 | 已实现并接入，但使用 Roleplay Provider；未单独走 decision 模型 | S6 的 Decision 双引擎统一 |
+| 主动性文案 | 使用角色卡模板（不走 LLM），保证零延迟与可预测 | S7 自然度打磨可改为短 LLM |
+| 状态机可视化 | 展示当前标签的规则/守卫，不是力导向图 | S7 可补 |
+
+**质量门禁**：`ruff 0` / `mypy 0`（66 文件）/ `pytest 139 passed` / `emotion/` 87% / `tsc + vite build` 通过 / 契约无漂移。
 
 ---
 

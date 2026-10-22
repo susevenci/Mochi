@@ -450,3 +450,273 @@ body {
 .debug-results li.fail {
   color: #a32b2b;
 }
+
+/* ── S3 情感调试面板 ── */
+.debug-panel {
+  width: min(560px, calc(100% - 24px));
+}
+
+.debug-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 5%);
+}
+
+.debug-tabs button {
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #5b6478;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.debug-tabs button.active {
+  background: #fff;
+  color: #1f2430;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
+}
+
+.emotion-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f7f8fb;
+}
+
+.emotion-current {
+  min-width: 0;
+}
+
+.emotion-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.emotion-secondary {
+  margin-left: 4px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.emotion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.emotion-bars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.pad-bar {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 4px;
+  align-items: center;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.pad-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 8%);
+  overflow: hidden;
+}
+
+.pad-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 120ms linear;
+}
+
+.pad-bar b {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.emotion-tau {
+  grid-column: 1 / -1;
+  color: #9aa4b2;
+  font-size: 10px;
+  text-align: right;
+}
+
+.emotion-chart-wrap {
+  margin: 10px 0 6px;
+}
+
+.emotion-chart {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #fbfbfd;
+}
+
+.chart-grid {
+  stroke: rgb(0 0 0 / 8%);
+  stroke-dasharray: 3 3;
+}
+
+.chart-axis {
+  stroke: rgb(0 0 0 / 14%);
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-line.valence {
+  stroke: #5b8def;
+}
+
+.chart-line.arousal {
+  stroke: #e8a33d;
+}
+
+.chart-line.dominance {
+  stroke: #49a078;
+}
+
+.emotion-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.emotion-legend .valence {
+  color: #5b8def;
+}
+
+.emotion-legend .arousal {
+  color: #b97616;
+}
+
+.emotion-legend .dominance {
+  color: #2e7d5b;
+}
+
+.emotion-chart-time {
+  margin-left: auto;
+  color: #9aa4b2;
+}
+
+.emotion-timeline {
+  display: flex;
+  height: 14px;
+  margin: 6px 0 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(0 0 0 / 5%);
+}
+
+.timeline-seg {
+  min-width: 2px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 8px;
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+  transition: flex-grow 120ms linear;
+}
+
+.emotion-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.emotion-slider {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.emotion-slider > span {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.emotion-slider b {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.settings-panel input[type='range'] {
+  padding: 0;
+  accent-color: #688cff;
+}
+
+.emotion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+.emotion-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.emotion-list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cause-time {
+  color: #9aa4b2;
+}
+
+.cause-delta {
+  color: #8b93a1;
+}
+
+@media (max-width: 460px) {
+  .emotion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 刺激注入器：select 占满剩余宽度，数字框固定窄宽，避免被挤成 "V" */
+.emotion-controls .settings-motion-row > select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.emotion-controls .settings-motion-row > input[type='number'] {
+  flex: 0 0 76px;
+  width: 76px;
+}

@@ -13,7 +13,8 @@ from app.providers.base import ChatMessage
 
 # 字符预算（S1 用字符近似 token；S6 换成 tiktoken 精确计数）
 PERSONA_CHARS = 900
-OUTPUT_FORMAT_CHARS = 400
+OUTPUT_FORMAT_CHARS = 450
+EMOTION_CHARS = 700
 DIALOG_CHARS = 2400
 
 OUTPUT_FORMAT = """\
@@ -71,7 +72,7 @@ class ContextBuilder:
         if layer != "roleplay":
             raise NotImplementedError("S1 只实现 roleplay 层")
 
-        limit = PERSONA_CHARS + OUTPUT_FORMAT_CHARS
+        limit = PERSONA_CHARS + OUTPUT_FORMAT_CHARS + (EMOTION_CHARS if emotion_block else 0)
         system = self.system_prompt(emotion_block=emotion_block)[:limit]
         messages: list[ChatMessage] = [ChatMessage(role="system", content=system)]
 

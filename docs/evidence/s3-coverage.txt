@@ -1,0 +1,30 @@
+  E:\ZJH\Projects\Mochi\mochi\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.15-final-0 _______________
+
+Name                                          Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------
+server\app\emotion\__init__.py                    0      0   100%
+server\app\emotion\decay.py                      31      0   100%
+server\app\emotion\engine.py                    497     79    84%   191, 212-216, 219-224, 235, 245, 248-255, 266, 273, 280, 309, 320-322, 398, 400, 484, 490, 492, 513-514, 561-563, 601, 609, 620, 654, 692-697, 701, 708-709, 721-722, 741, 743, 749-751, 754, 770-772, 777-791, 796, 798, 819, 835-836, 838-839, 851-854, 893-895, 955-960
+server\app\emotion\labels.py                     70      2    97%   65, 102
+server\app\emotion\models.py                    148      8    95%   74, 106, 166, 187, 249, 252-254
+server\app\emotion\persona.py                    67     11    84%   41, 48, 105, 116, 119, 128, 131-132, 136-138
+server\app\emotion\presentation.py               79     11    86%   78, 102, 129-136, 188
+server\app\emotion\proactive.py                  36      5    86%   51, 55, 57, 61, 70
+server\app\emotion\prompt_block.py               87     26    70%   40-44, 49, 51, 53, 59, 61, 117-118, 120-121, 123, 125, 132-134, 151-164
+server\app\emotion\repl.py                       94     94     0%   16-147
+server\app\emotion\stimuli\__init__.py            0      0   100%
+server\app\emotion\stimuli\catalog.py            54      5    91%   57, 70, 74-75, 89
+server\app\emotion\stimuli\chronobiology.py      19      0   100%
+server\app\emotion\stimuli\interaction.py        26      1    96%   84
+server\app\emotion\stimuli\lexicon.py            30      8    73%   32, 140-146
+server\app\emotion\stimuli\noise.py              11      0   100%
+server\app\emotion\stimuli\text_analyzer.py     123     17    86%   109, 114-115, 121, 138, 185-187, 193, 196, 200-201, 229-230, 240, 249-250
+server\app\emotion\transitions.py               109      9    92%   104, 112, 116, 124, 128, 136, 140, 148, 224
+---------------------------------------------------------------------------
+TOTAL                                          1481    276    81%
+Required test coverage of 80% reached. Total coverage: 81.36%

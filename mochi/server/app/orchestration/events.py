@@ -28,6 +28,13 @@ class CuePayload:
     motion: str
     priority: str = "normal"
     expression: str | None = None
+    expression_weight: float = 1.0
+    secondary_expression: str | None = None
+    secondary_weight: float = 0.0
+    auto_release_ms: int | None = None
+    tts: dict[str, float] | None = None
+    params: dict[str, float] | None = None
+    style_hints: list[str] | None = None
 
 
 class EventSink(Protocol):

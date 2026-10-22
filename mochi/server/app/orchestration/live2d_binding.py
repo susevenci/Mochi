@@ -123,8 +123,7 @@ def validate_binding(card: CharacterCard, models: list[dict[str, Any]]) -> Bindi
     expression_names = list(selected["expression_names"]) if selected else []
     missing_motions = sorted(set(EMOTION_TO_MOTION.values()) - set(motion_groups))
     unknown_expressions = sorted(
-        {name for name in card.presentation.emotion_expressions.values()}
-        - set(expression_names)
+        {name for name in card.presentation.emotion_expressions.values()} - set(expression_names)
     )
 
     if missing_motions and declared:
