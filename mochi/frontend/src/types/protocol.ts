@@ -125,7 +125,7 @@ export interface InteractionEventPayload {
   y?: number;
 }
 
-export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event" | "emotion.update" | "proactive.speak" | "audio.in_begin" | "audio.in_chunk" | "audio.in_end" | "audio.out_begin" | "audio.out_chunk" | "audio.out_end" | "audio.stop" | "asr.partial" | "asr.final" | "asr.error";
+export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event" | "emotion.update" | "proactive.speak" | "audio.in_begin" | "audio.in_chunk" | "audio.in_end" | "audio.out_begin" | "audio.out_chunk" | "audio.out_end" | "audio.stop" | "asr.partial" | "asr.final" | "asr.error" | "tool.confirm_request" | "tool.confirm_response";
 
 export interface PADPayload {
   arousal: number;
@@ -169,4 +169,16 @@ export interface SysHelloAckPayload {
 export interface SysPongPayload {
   echo_ts?: number | null;
   server_time: number;
+}
+
+export interface ToolConfirmRequestPayload {
+  arguments?: Record<string, unknown>;
+  request_id: string;
+  timeout_seconds?: number;
+  tool: string;
+}
+
+export interface ToolConfirmResponsePayload {
+  approved?: boolean;
+  request_id: string;
 }

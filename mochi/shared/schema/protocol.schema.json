@@ -649,7 +649,9 @@
         "audio.stop",
         "asr.partial",
         "asr.final",
-        "asr.error"
+        "asr.error",
+        "tool.confirm_request",
+        "tool.confirm_response"
       ],
       "title": "MessageType",
       "type": "string"
@@ -905,6 +907,52 @@
         "server_time"
       ],
       "title": "SysPongPayload",
+      "type": "object"
+    },
+    "ToolConfirmRequestPayload": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60.0,
+          "title": "Timeout Seconds",
+          "type": "number"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "tool"
+      ],
+      "title": "ToolConfirmRequestPayload",
+      "type": "object"
+    },
+    "ToolConfirmResponsePayload": {
+      "properties": {
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "ToolConfirmResponsePayload",
       "type": "object"
     }
   },

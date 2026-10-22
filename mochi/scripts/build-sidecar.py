@@ -31,6 +31,8 @@ def build() -> Path:
         f"{ROOT / 'characters'}{sep}characters",
         "--add-data",
         f"{ROOT / 'server' / 'app' / 'emotion' / 'data'}{sep}app/emotion/data",
+        "--add-data",
+        f"{ROOT / 'skills'}{sep}skills",
         "--collect-submodules",
         "app",
         "--collect-submodules",

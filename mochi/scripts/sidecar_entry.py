@@ -26,6 +26,9 @@ def main() -> None:
     cards = base / "characters"
     if cards.is_dir():
         os.environ.setdefault("CHARACTERS_DIR", str(cards))
+    skills = base / "skills"
+    if skills.is_dir():
+        os.environ.setdefault("SKILLS_DIR", str(skills))
     os.environ.setdefault("SERVER_HOST", "127.0.0.1")
 
     import uvicorn

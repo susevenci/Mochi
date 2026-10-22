@@ -15,6 +15,7 @@ import { WSClient, type ConnectionStatus } from './net/WSClient';
 import { ulid } from './net/ulid';
 import { detectShell } from './shell/detect';
 import type { Envelope } from './types/protocol';
+import { mountConfirm, type ConfirmRequest } from './ui/ConfirmDialog';
 import { mountDevPanel } from './ui/DevPanel';
 import {
   ingestEmotion,
@@ -32,6 +33,7 @@ const sendEl = document.querySelector<HTMLButtonElement>('#chat-send');
 const micEl = document.querySelector<HTMLButtonElement>('#mic-button');
 const captionEl = document.querySelector<HTMLDivElement>('#asr-caption');
 const fallbackEl = document.querySelector<HTMLImageElement>('#fallback-portrait');
+const confirmRoot = document.querySelector<HTMLDivElement>('#confirm-root');
 
 if (
   !stageEl ||
@@ -42,7 +44,8 @@ if (
   !sendEl ||
   !micEl ||
   !captionEl ||
-  !fallbackEl
+  !fallbackEl ||
+  !confirmRoot
 ) {
   throw new Error('missing required DOM nodes');
 }
@@ -559,6 +562,20 @@ client.on('audio.stop', () => {
   audio.stop();
   if (voice.isSpeaking) voice.transition('interrupted', 'audio stop');
   voice.transition('idle', 'audio stop');
+});
+
+let unmountConfirm: (() => void) | null = null;
+
+client.on('tool.confirm_request', (envelope: Envelope) => {
+  const payload = envelope.payload as unknown as ConfirmRequest;
+  unmountConfirm?.();
+  unmountConfirm = mountConfirm(confirmRoot, payload, (approved) => {
+    client.send('tool.confirm_response', {
+      request_id: payload.request_id,
+      approved,
+    });
+    unmountConfirm = null;
+  });
 });
 
 // ── 表现指令（S2）：情绪 → 动作/表情/待机节奏 ──

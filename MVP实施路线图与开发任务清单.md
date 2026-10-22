@@ -985,35 +985,35 @@ IDLE ──(按下录音)──▶ LISTENING ──(VAD 结束/松手)──▶ 
 
 ### 4.7 S6 记忆、Skills 与工具（15 项）
 
-- [ ] **T6-01** `[BE]` **SQLite 基础设施** · 1d ← T0-03
+- [x] **T6-01** `[BE]` **SQLite 基础设施** · 1d ← T0-03
   - 产出 `store/schema.sql` + `db.py`（aiosqlite / WAL / 单写者队列 / 迁移） ｜ 验收：并发写不出现 `database is locked`；7 张表建表成功
-- [ ] **T6-02** `[BE]` **会话与消息仓储** · 1d ← T6-01
+- [x] **T6-02** `[BE]` **会话与消息仓储** · 1d ← T6-01
   - 产出 `messages_repo.py` + `sessions.py` + `/new /ls /switch /rename /delete` ｜ 验收：多会话隔离；切换会话不重置情绪
-- [ ] **T6-03** `[BE]` **ContextBuilder 预算版** · 1d ← T1-05,T6-02
+- [x] **T6-03** `[BE]` **ContextBuilder 预算版** · 1d ← T1-05,T6-02
   - 产出 按 5.3.3 的 9 项预算分配 + 按轮次截断 ｜ 验收：超预算时触发摘要而非硬丢；`tiktoken` 计数误差 <5%
-- [ ] **T6-04** `[BE]` **摘要压缩与滚动合并** · 1d ← T6-03
+- [x] **T6-04** `[BE]` **摘要压缩与滚动合并** · 1d ← T6-03
   - 产出 `memory/summarizer.py` ｜ 验收：40 轮对话后 prompt token **不随轮次线性增长**（日志曲线）；摘要不超预算
-- [ ] **T6-05** `[BE]` **记忆抽取器** · 1d ← T6-01
+- [x] **T6-05** `[BE]` **记忆抽取器** · 1d ← T6-01
   - 产出 `memory/extractor.py`（规则 + 小模型；type/importance/keywords/expire_at） ｜ 验收：20 条样本"值得记"召回 ≥70%，误记 ≤2 条
-- [ ] **T6-06** `[BE]` **关键词检索（FTS5）** · 0.5d ← T6-05
+- [x] **T6-06** `[BE]` **关键词检索（FTS5）** · 0.5d ← T6-05
   - 产出 `memory/retriever/keyword.py`（ADR-9） ｜ 验收：`recall()` 按 `bm25 + importance + recency` 加权排序；Top-4 相关率主观 ≥70%
-- [ ] **T6-07** `[BE]` **用户画像** · 0.5d ← T6-02
+- [x] **T6-07** `[BE]` **用户画像** · 0.5d ← T6-02
   - 产出 `profile_repo.py` + `update_user_profile` 工具 + `memory.profile_updated` 推送 ｜ 验收：更新后前端播报"我记住啦"；`/forget` 可清空
-- [ ] **T6-08** `[BE]` **Decision 的 LLM 兜底分类** · 0.5d ← T1-08
+- [x] **T6-08** `[BE]` **Decision 的 LLM 兜底分类** · 0.5d ← T1-08
   - 产出 强制 JSON 的 64-token 分类 ｜ 验收：置信度 <0.6 降级 CHAT；超时 800ms 降级；三档 route_mode 生效
-- [ ] **T6-09** `[BE]` **工具基类与注册表** · 1d ← T6-01
+- [x] **T6-09** `[BE]` **工具基类与注册表** · 1d ← T6-01
   - 产出 `tools/base.py` + `registry.py`（Pydantic → JSON Schema、按层过滤、热开关） ｜ 验收：`layer="roleplay"` 返回空集；schema 通过 OpenAI 格式校验
-- [ ] **T6-10** `[BE]` **Agent Core 循环** · 1.5d ← T6-09,T1-01
+- [x] **T6-10** `[BE]` **Agent Core 循环** · 1.5d ← T6-09,T1-01
   - 产出 `agent_core.py`：五道护栏 + 错误回灌 + pending_reports ｜ 验收：工具抛异常时模型能自我修正；8 步中止；墙钟 120s 中止；`chat.interrupt` 可取消
-- [ ] **T6-11** `[BE]` **12 个内置工具** · 2d ← T6-09
+- [x] **T6-11** `[BE]` **12 个内置工具** · 2d ← T6-09
   - 产出 `tools/builtin/*`（时间/提醒/记忆/搜索/天气/情绪/动作/桌面/speak） ｜ 验收：每个工具有单测；未配置 Key 的工具不注册；`risk=high` 需确认
-- [ ] **T6-12** `[BE]` **Skills 注册表与三工具** · 1d ← T6-09
+- [x] **T6-12** `[BE]` **Skills 注册表与三工具** · 1d ← T6-09
   - 产出 `skills/registry.py` + `meta_tools.py` + `safety.py` ｜ 验收：`skill_list` 常驻 <250 token；`../` 路径穿越被拒（单测）；30 分钟未用自动卸载
-- [ ] **T6-13** `[BE]` **3 个内置技能包** · 0.5d ← T6-12
+- [x] **T6-13** `[BE]` **3 个内置技能包** · 0.5d ← T6-12
   - 产出 `reminder` / `emotional-support` / `morning-greeting` ｜ 验收：`skill_activate` 后正文进上下文，`skill_read` 可分页读取 references
-- [ ] **T6-14** `[BE]` **提醒调度** · 0.5d ← T6-11
+- [x] **T6-14** `[BE]` **提醒调度** · 0.5d ← T6-11
   - 产出 `scheduler/reminders.py`（APScheduler） ｜ 验收：到点主动播报 + `proud` 情绪；重启后未到期任务仍有效
-- [ ] **T6-15** `[BE/FE]` **危险操作确认** · 0.5d ← T6-10
+- [x] **T6-15** `[BE/FE]` **危险操作确认** · 0.5d ← T6-10
   - 产出 `tool.confirm_request` + `ConfirmDialog.tsx` ｜ 验收：`risk=high` 弹窗；60s 超时自动拒绝；拒绝结果回灌给模型
 
 ### 4.8 S7 打磨与打包（11 项）
@@ -1363,6 +1363,36 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 | 重启表情 | 只做自动重连，未单独播放 confused | S7 可由重连事件注入一次低强度刺激 |
 | 设置项 | 模型/语音/外壳完成；主动性/工具/记忆开关 | S6 接入后补齐 |
 | 安装包 | 仅 `--no-bundle` 编译产物 | S7 产出 MSI/NSIS |
+
+---
+
+### 4.18 S6 实施进度（2026-10-22）
+
+**完成度：S6 15/15 项落地**。对话系统从"会聊天"升级为"记得住、能办事"。
+
+#### 关键交付
+
+| 能力 | 证据 |
+| --- | --- |
+| SQLite | 7 张表 + WAL + 单写者队列；重启后会话/记忆/提醒仍在 |
+| 会话命令 | `/new /ls /switch /rename /delete`；多会话隔离单测 |
+| 长期记忆 | 名字/偏好抽取 + FTS5 bigram 召回；`阿哲` 跨重启可召回 |
+| 摘要 | 40 轮后保留最近 20 条 + 摘要，`summarized_upto` 滚动推进 |
+| 工具 | 16 个（12+ 内置 + Skills 3）；schema 自动导出；层过滤 |
+| Agent Core | 工具调用→结果回灌→再生成；8 步/30s/120s/取消/参数校验 |
+| 高风险确认 | `ConfirmationStore` + `tool.confirm_request/response` + 前端弹窗 |
+| Skills | 3 个技能包；路径穿越拒绝；30 分钟卸载 |
+| 提醒 | 到点 tick → `proactive.speak` + proud；重启后未到期提醒仍有效 |
+| 验收 | 167→169 tests / 全局覆盖率 **82%** / ruff+mypy 0 / 前端构建通过 |
+
+#### 已知偏差
+
+| 项 | 现状 | 后续 |
+| --- | --- | --- |
+| 情绪持久化 | 仍为 JSON Repo；SQLite 表已建 | S7 可迁移 |
+| 外部工具 | web_search/weather 依赖公网，失败回灌 | S7 错误文案打磨 |
+| Skills 上下文 | 通过工具结果进入上下文，无独立槽位 | 足够当前 MVP |
+| Agent 模型 | 复用 roleplay Provider，未独立 decision/summary 模型 | S7 多模型分工 |
 
 ---
 

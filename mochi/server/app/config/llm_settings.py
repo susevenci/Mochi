@@ -41,11 +41,7 @@ def parse_models(payload: object) -> list[str]:
     """从 OpenAI 兼容的 /models 响应里提取模型 ID（去重、排序）。"""
     items = payload.get("data") if isinstance(payload, dict) else None
     return sorted(
-        {
-            str(item["id"])
-            for item in items or []
-            if isinstance(item, dict) and item.get("id")
-        }
+        {str(item["id"]) for item in items or [] if isinstance(item, dict) and item.get("id")}
     )
 
 

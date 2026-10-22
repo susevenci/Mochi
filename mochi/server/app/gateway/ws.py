@@ -40,8 +40,11 @@ from app.gateway.protocol import (
     PerformanceCuePayload,
     SysHelloAckPayload,
     SysPongPayload,
+    ToolConfirmRequestPayload,
+    ToolConfirmResponsePayload,
     build_envelope,
 )
+from app.orchestration.confirmation import ConfirmationStore
 from app.orchestration.events import CuePayload, EventSink, FinalPayload
 from app.orchestration.orchestrator import Orchestrator
 from app.utils.ids import ulid
@@ -145,6 +148,23 @@ class WSSink:
 
     async def audio_stop(self, turn_id: str) -> None:
         await self._ws.send_json(_envelope(MessageType.AUDIO_STOP, AudioStopPayload(), turn_id))
+
+    async def confirm_request(
+        self,
+        turn_id: str,
+        request_id: str,
+        tool: str,
+        args: dict[str, Any],
+        *,
+        timeout_seconds: float = 60.0,
+    ) -> None:
+        body = ToolConfirmRequestPayload(
+            request_id=request_id,
+            tool=tool,
+            arguments=args,
+            timeout_seconds=timeout_seconds,
+        )
+        await self._ws.send_json(_envelope(MessageType.TOOL_CONFIRM_REQUEST, body, turn_id))
 
 
 def _envelope(env_type: str, payload: Any, turn_id: str | None = None) -> dict[str, Any]:
@@ -255,6 +275,7 @@ async def _dispatch(
     emotion: EmotionEngine | None = None,
     voice: VoiceService | None = None,
     voice_state: VoiceState | None = None,
+    confirmations: ConfirmationStore | None = None,
 ) -> None:
     """单条消息的分发。任何异常都转成 ``sys.error``，绝不中断连接。"""
     try:
@@ -308,6 +329,14 @@ async def _dispatch(
             await ws.send_json(
                 _envelope(MessageType.AUDIO_STOP, AudioStopPayload(reason="user"), env.turn_id)
             )
+        return
+    if env.type == MessageType.TOOL_CONFIRM_RESPONSE:
+        if confirmations is not None:
+            try:
+                response = ToolConfirmResponsePayload.model_validate(env.payload)
+                confirmations.resolve(response.request_id, response.approved)
+            except ValidationError:
+                pass
         return
     if env.type == MessageType.AUDIO_IN_BEGIN:
         if voice_state is None:
@@ -379,6 +408,7 @@ def create_ws_router(
     orchestrator: Orchestrator | None = None,
     emotion: EmotionEngine | None = None,
     voice: VoiceService | None = None,
+    confirmations: ConfirmationStore | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -403,6 +433,7 @@ def create_ws_router(
                     emotion,
                     voice,
                     voice_state,
+                    confirmations,
                 )
         except WebSocketDisconnect:
             pass

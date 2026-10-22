@@ -45,6 +45,8 @@ class MessageType(StrEnum):
     ASR_PARTIAL = "asr.partial"
     ASR_FINAL = "asr.final"
     ASR_ERROR = "asr.error"
+    TOOL_CONFIRM_REQUEST = "tool.confirm_request"
+    TOOL_CONFIRM_RESPONSE = "tool.confirm_response"
 
 
 class Envelope(BaseModel):
@@ -249,3 +251,15 @@ class AsrFinalPayload(BaseModel):
 class AsrErrorPayload(BaseModel):
     code: str
     detail: str = ""
+
+
+class ToolConfirmRequestPayload(BaseModel):
+    request_id: str
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    timeout_seconds: float = 60.0
+
+
+class ToolConfirmResponsePayload(BaseModel):
+    request_id: str
+    approved: bool = False

@@ -13,7 +13,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import yaml
@@ -46,6 +46,7 @@ from .gateway.ws import ConnectionManager, create_ws_router
 from .orchestration.live2d_binding import scan_live2d_models as _scan_live2d_models
 from .orchestration.live2d_binding import validate_binding
 from .providers.base import LLMError
+from .scheduler.reminders import ReminderScheduler
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +66,19 @@ class StimulusRequest(BaseModel):
 
 class AdvanceRequest(BaseModel):
     seconds: float = Field(gt=0.0, le=30 * 24 * 3600)
+
+
+class MemorySessionRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=60)
+
+
+class ProfileRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=40)
+    value: str = Field(min_length=1, max_length=200)
+
+
+class AgentConfigPatch(BaseModel):
+    route_mode: Literal["auto", "chat_only", "force_agent"] | None = None
 
 
 class PersonaPatch(BaseModel):
@@ -112,6 +126,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await ctx.memory.start()
+
+        async def emit_proactive(text: str, label: str) -> None:
+            payload = ProactiveSpeakPayload(text=text, emotion_label=label, kind="report")
+            await manager.broadcast(_envelope(MessageType.PROACTIVE_SPEAK, payload))
+
+        ctx.orchestrator.set_report_sink(emit_proactive)
+        reminder_scheduler = ReminderScheduler(
+            memory=ctx.memory,
+            emotion=ctx.emotion,
+            emit=emit_proactive,
+        )
+        await reminder_scheduler.start()
         unsubscribe = ctx.emotion.subscribe(broadcast_emotion)
         await ctx.emotion.start()
 
@@ -141,8 +168,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with contextlib.suppress(asyncio.CancelledError):
                 await proactive_task
             unsubscribe()
+            await reminder_scheduler.stop()
             await ctx.emotion.stop()
             await ctx.voice.aclose()
+            await ctx.memory.stop()
 
     app = FastAPI(title="Mochi Server", version=__version__, lifespan=lifespan)
     app.add_middleware(
@@ -201,7 +230,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     # 用户可改设置（settings.json）：窗口位置/置顶/穿透/自启（计划书 4.8）
-    patchable_keys = {"window"}
+    patchable_keys = {"window", "agent"}
 
     @app.get("/api/v1/config/user", dependencies=[Depends(require_token)])
     async def get_user_settings() -> dict[str, Any]:
@@ -267,6 +296,84 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return report.to_payload()
 
     # ── 情感引擎调试 API（T3-01 / T3-18）──
+    # ── 记忆 / 工具 / 技能（S6）──
+    @app.get("/api/v1/memory/sessions", dependencies=[Depends(require_token)])
+    async def memory_sessions() -> dict[str, Any]:
+        sessions = await ctx.memory.list_sessions()
+        return {
+            "sessions": [item.__dict__ for item in sessions],
+            "current": ctx.memory.current_session,
+        }
+
+    @app.post("/api/v1/memory/sessions", dependencies=[Depends(require_token)])
+    async def create_memory_session(body: MemorySessionRequest) -> dict[str, Any]:
+        session_id = await ctx.memory.create_session(body.title)
+        return {"id": session_id}
+
+    @app.post("/api/v1/memory/sessions/{session_id}/switch", dependencies=[Depends(require_token)])
+    async def switch_memory_session(session_id: str) -> dict[str, Any]:
+        ok = await ctx.memory.switch_session(session_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="session not found")
+        return {"current": ctx.memory.current_session}
+
+    @app.patch("/api/v1/memory/sessions/{session_id}", dependencies=[Depends(require_token)])
+    async def rename_memory_session(session_id: str, body: MemorySessionRequest) -> dict[str, Any]:
+        if body.title:
+            if ctx.memory.current_session != session_id:
+                await ctx.memory.switch_session(session_id)
+            await ctx.memory.rename_session(body.title)
+        return {"ok": True}
+
+    @app.delete("/api/v1/memory/sessions/{session_id}", dependencies=[Depends(require_token)])
+    async def delete_memory_session(session_id: str) -> dict[str, Any]:
+        await ctx.memory.delete_session(session_id)
+        return {"ok": True, "current": ctx.memory.current_session}
+
+    @app.get("/api/v1/memory/memories", dependencies=[Depends(require_token)])
+    async def memory_list(limit: int = 100) -> dict[str, Any]:
+        return {
+            "memories": await ctx.memory.list_memories(max(1, min(limit, 500))),
+            "profile": await ctx.memory.get_profile(),
+        }
+
+    @app.delete("/api/v1/memory/memories/{memory_id}", dependencies=[Depends(require_token)])
+    async def memory_delete(memory_id: int) -> dict[str, Any]:
+        await ctx.memory.delete_memory(memory_id)
+        return {"ok": True}
+
+    @app.post("/api/v1/memory/forget", dependencies=[Depends(require_token)])
+    async def memory_forget() -> dict[str, Any]:
+        await ctx.memory.forget(all_sessions=True)
+        return {"ok": True}
+
+    @app.get("/api/v1/tools", dependencies=[Depends(require_token)])
+    async def list_tools() -> dict[str, Any]:
+        return {"tools": ctx.tools.describe()}
+
+    @app.post("/api/v1/tools/{name}/toggle", dependencies=[Depends(require_token)])
+    async def toggle_tool(name: str, enabled: bool = True) -> dict[str, Any]:
+        if not ctx.tools.set_enabled(name, enabled):
+            raise HTTPException(status_code=404, detail="tool not found")
+        return {"name": name, "enabled": enabled}
+
+    @app.get("/api/v1/skills", dependencies=[Depends(require_token)])
+    async def list_skills() -> dict[str, Any]:
+        return {
+            "skills": [
+                {"name": item.name, "description": item.description}
+                for item in ctx.skills.list_skills()
+            ],
+            "active": ctx.skills.active_names(),
+        }
+
+    @app.patch("/api/v1/config/agent", dependencies=[Depends(require_token)])
+    async def patch_agent_config(body: AgentConfigPatch) -> dict[str, Any]:
+        if body.route_mode is not None:
+            ctx.orchestrator.set_route_mode(body.route_mode)
+            ctx.user_settings.patch({"agent": {"route_mode": body.route_mode}})
+        return {"route_mode": ctx.orchestrator.route_mode}
+
     @app.get("/api/v1/emotion/state", dependencies=[Depends(require_token)])
     async def emotion_state() -> dict[str, Any]:
         return {
@@ -403,6 +510,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ctx.orchestrator,
             emotion=ctx.emotion,
             voice=ctx.voice,
+            confirmations=ctx.confirmations,
         )
     )
 

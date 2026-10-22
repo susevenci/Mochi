@@ -1,0 +1,46 @@
+S6 记忆、Skills 与工具验收证据
+================================
+日期: 2026-10-22
+环境: Windows 10 / Python 3.12 / aiosqlite / APScheduler / tiktoken
+
+一、自动化
+- 后端: 169 tests passed
+- 覆盖率: 82%（gate S6 要求 ≥60%）
+- ruff: 0 errors
+- mypy: 0 issues（94 文件）
+- 前端: tsc + vite build 通过
+
+二、SQLite / 会话
+- 7 张表: sessions/messages/memories/profiles/reminders/emotion_snapshots/metrics
+- WAL + 单写者队列；并发写无 database is locked
+- /new /ls /switch /rename /delete 单测通过；切换会话消息隔离
+- 重启后 profile.name=阿哲、记忆与提醒仍在
+
+三、记忆与摘要
+- 规则抽取: 名字/偏好/生日/显式嘱托
+- FTS5 bigram 检索: 查询"阿哲"/"黑咖啡"命中
+- 40 轮: recent_turns=20 + summary 非空；summarized_upto 滚动推进
+- /forget 清空记忆与画像
+
+四、工具与 Agent
+- 16 个工具（12+ 内置 + skill_list/activate/read）
+- schema 为 OpenAI function 格式；layer 过滤 roleplay 为空
+- Agent Core: 工具调用→回灌→完成；未知工具错误回灌；max_steps=3 测试
+- 高风险 forget: 未确认时不删除
+- 任务流: ack 先返回 route=task；后台 set_reminder；report 回调收到"记下"
+- 提醒调度 tick: 到点 fired + emit(proud)
+
+五、Skills
+- reminder / emotional-support / morning-greeting
+- activate 返回正文；read 分页 references
+- ../etc/passwd 被拒绝；30 分钟自动卸载单测
+
+六、API / 前端
+- /api/v1/memory/sessions|memories|forget、/api/v1/tools、/api/v1/skills、/api/v1/config/agent
+- 设置面板新增"记忆与会话"：会话切换/删除、记忆删除/清空、路由模式
+- 工具确认弹窗 ConfirmDialog（60s 超时自动拒绝）
+
+七、已知偏差
+- 情绪引擎仍 JSON Repo（SQLite emotion_snapshots 表已建）
+- web_search/weather 依赖公网
+- Agent 复用 roleplay Provider

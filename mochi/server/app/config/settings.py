@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     # ── 角色（S1 起使用）──
     character: str = "tsundere"
     characters_dir: Path | None = None
+    skills_dir: Path | None = None
+    route_mode: str = "auto"
 
     # ── 语音（S4）──
     voice_enabled: bool = False
@@ -82,6 +84,14 @@ class Settings(BaseSettings):
         if repo_cards.is_dir():
             return repo_cards
         return self.data_dir / "characters"
+
+    def skills_path(self) -> Path:
+        if self.skills_dir is not None:
+            return self.skills_dir
+        repo_skills = PROJECT_ROOT / "skills"
+        if repo_skills.is_dir():
+            return repo_skills
+        return self.data_dir / "skills"
 
     def ensure_dirs(self) -> None:
         """运行时数据与代码分离（第 10 章原则 5）。"""

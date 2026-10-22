@@ -9,13 +9,20 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.config.character_card import CharacterCard
+from app.memory.tokens import count_tokens, truncate_tokens
 from app.providers.base import ChatMessage
 
 # 字符预算（S1 用字符近似 token；S6 换成 tiktoken 精确计数）
 PERSONA_CHARS = 900
 OUTPUT_FORMAT_CHARS = 450
 EMOTION_CHARS = 700
+MEMORY_CHARS = 900
 DIALOG_CHARS = 2400
+PERSONA_TOKENS = 420
+EMOTION_TOKENS = 320
+MEMORY_TOKENS = 380
+OUTPUT_TOKENS = 260
+DIALOG_TOKENS = 1200
 
 OUTPUT_FORMAT = """\
 【输出格式】
@@ -38,7 +45,12 @@ class ContextBuilder:
     def set_card(self, card: CharacterCard) -> None:
         self._card = card
 
-    def system_prompt(self, *, emotion_block: str | None = None) -> str:
+    def system_prompt(
+        self,
+        *,
+        emotion_block: str | None = None,
+        memory_block: str | None = None,
+    ) -> str:
         identity = self._card.identity
         catchphrases = "、".join(identity.catchphrases) or "（无）"
         forbidden = "、".join(identity.forbidden) or "（无）"
@@ -57,6 +69,8 @@ class ContextBuilder:
         ]
         if emotion_block:
             parts += ["", emotion_block]
+        if memory_block:
+            parts += ["", memory_block]
         parts += ["", OUTPUT_FORMAT]
         return "\n".join(parts)
 
@@ -67,20 +81,25 @@ class ContextBuilder:
         *,
         layer: str = "roleplay",
         emotion_block: str | None = None,
+        memory_block: str | None = None,
     ) -> list[ChatMessage]:
         """组装 messages。``layer="roleplay"`` 时工具预算恒为 0（I2）。"""
         if layer != "roleplay":
             raise NotImplementedError("S1 只实现 roleplay 层")
 
-        limit = PERSONA_CHARS + OUTPUT_FORMAT_CHARS + (EMOTION_CHARS if emotion_block else 0)
-        system = self.system_prompt(emotion_block=emotion_block)[:limit]
+        emotion_block = truncate_tokens(emotion_block, EMOTION_TOKENS) if emotion_block else None
+        memory_block = truncate_tokens(memory_block, MEMORY_TOKENS) if memory_block else None
+        system = truncate_tokens(
+            self.system_prompt(emotion_block=emotion_block, memory_block=memory_block),
+            1800,
+        )
         messages: list[ChatMessage] = [ChatMessage(role="system", content=system)]
 
-        # 从最近往前取整轮，直到预算耗尽（不切断一问一答）
-        budget = DIALOG_CHARS
+        # 从最近往前取整轮，直到 token 预算耗尽（不切断一问一答）
+        budget = DIALOG_TOKENS
         selected: list[tuple[str, str]] = []
         for user, assistant in reversed(recent):
-            cost = len(user) + len(assistant)
+            cost = count_tokens(user) + count_tokens(assistant)
             if cost > budget and selected:
                 break
             selected.append((user, assistant))

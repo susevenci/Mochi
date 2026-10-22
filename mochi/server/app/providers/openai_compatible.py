@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from .base import ChatMessage, ChatResult, LLMError, Usage
+from .base import ChatMessage, ChatResult, LLMError, ToolCall, Usage
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +113,48 @@ class OpenAICompatibleProvider:
             finish_reason=choices[0].get("finish_reason"),
             usage=Usage.from_wire(data.get("usage")),
             reasoning=message.get("reasoning_content") or "",
+        )
+
+    async def chat_tools(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        tools: Sequence[dict[str, Any]] = (),
+        model: str | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> ChatResult:
+        body = self._body(messages, model, temperature, max_tokens, stream=False)
+        body["tools"] = list(tools)
+        body["tool_choice"] = "auto"
+        data = await self._post_with_retry("/chat/completions", body)
+        choices = data.get("choices") or []
+        if not choices:
+            raise LLMError("LLM_EMPTY_RESPONSE", "choices 为空")
+        message = choices[0].get("message") or {}
+        calls: list[ToolCall] = []
+        for raw in message.get("tool_calls") or []:
+            function = raw.get("function") or {}
+            try:
+                arguments = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            calls.append(
+                ToolCall(
+                    id=str(raw.get("id") or ""),
+                    name=str(function.get("name") or ""),
+                    arguments=arguments,
+                )
+            )
+        return ChatResult(
+            content=message.get("content") or "",
+            model=str(data.get("model") or body["model"]),
+            finish_reason=choices[0].get("finish_reason"),
+            usage=Usage.from_wire(data.get("usage")),
+            reasoning=message.get("reasoning_content") or "",
+            tool_calls=tuple(calls),
         )
 
     async def stream(

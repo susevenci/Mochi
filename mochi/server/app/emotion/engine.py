@@ -623,9 +623,7 @@ class EmotionEngine:
         def shift(value: float) -> float:
             return value + offset if value > 0 else value
 
-        causes = tuple(
-            replace(cause, ts=shift(cause.ts)) for cause in state.recent_causes
-        )
+        causes = tuple(replace(cause, ts=shift(cause.ts)) for cause in state.recent_causes)
         self._state = replace(
             state,
             updated_at=state.updated_at + offset,

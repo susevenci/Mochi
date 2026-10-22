@@ -17,14 +17,22 @@ from .config.user_settings import UserSettings
 from .context import AppContext
 from .emotion.engine import EmotionEngine
 from .memory.context_builder import ContextBuilder
+from .memory.service import MemoryService
 from .memory.short_term import ShortTermMemory
 from .orchestration.commands import CommandRouter
+from .orchestration.confirmation import ConfirmationStore
 from .orchestration.decision import DecisionService
 from .orchestration.orchestrator import Orchestrator
 from .orchestration.roleplay import RoleplayService
 from .orchestration.turn_registry import TurnRegistry
 from .providers.usage import UsageTracker
+from .skills.meta_tools import SkillActivateTool, SkillListTool, SkillReadTool
+from .skills.registry import SkillRegistry
+from .store.db import Database
 from .store.emotion_repo import JsonEmotionRepo
+from .tools.agent_core import AgentCore
+from .tools.builtin import build_default_tools
+from .tools.registry import ToolRegistry
 from .voice.pipeline import VoiceService
 
 log = logging.getLogger(__name__)
@@ -50,6 +58,19 @@ def bootstrap(settings: Settings) -> AppContext:
     history = ShortTermMemory(max_turns=20)
     llm = LLMSettingsService(settings, user_settings)
     usage = UsageTracker()
+    memory = MemoryService(Database(settings.db_path))
+    skills = SkillRegistry(settings.skills_path())
+    tools = ToolRegistry()
+    for tool in build_default_tools():
+        tools.register(tool)
+    for tool in (
+        SkillListTool(skills),
+        SkillActivateTool(skills),
+        SkillReadTool(skills),
+    ):
+        tools.register(tool)
+    confirmations = ConfirmationStore()
+    agent = AgentCore(provider=llm.provider, registry=tools)
     emotion = EmotionEngine(
         card=cards.current,
         repo=JsonEmotionRepo(settings.data_dir / "emotion_state.json"),
@@ -57,9 +78,15 @@ def bootstrap(settings: Settings) -> AppContext:
     emotion.load()
     voice = VoiceService(settings)
 
+    stored_agent = user_settings.get("agent")
+    route_mode = (
+        str(stored_agent.get("route_mode"))
+        if isinstance(stored_agent, dict) and stored_agent.get("route_mode")
+        else settings.route_mode
+    )
     orchestrator = Orchestrator(
         decision=DecisionService(),
-        commands=CommandRouter(cards=cards, history=history, builder=builder),
+        commands=CommandRouter(cards=cards, history=history, builder=builder, memory=memory),
         roleplay=RoleplayService(
             llm=llm,
             temperature=settings.llm_temperature_roleplay,
@@ -67,9 +94,15 @@ def bootstrap(settings: Settings) -> AppContext:
             history=history,
             emotion=emotion,
             voice=voice,
+            memory=memory,
         ),
         turns=TurnRegistry(),
         emotion=emotion,
+        memory=memory,
+        agent=agent,
+        skills=skills,
+        confirmations=confirmations,
+        route_mode=route_mode,
     )
 
     log.info(
@@ -90,4 +123,9 @@ def bootstrap(settings: Settings) -> AppContext:
         history=history,
         emotion=emotion,
         voice=voice,
+        memory=memory,
+        skills=skills,
+        tools=tools,
+        agent=agent,
+        confirmations=confirmations,
     )

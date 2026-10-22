@@ -40,6 +40,7 @@ class RoleplayService:
         history: ShortTermMemory,
         emotion: EmotionEngine | None = None,
         voice: VoiceService | None = None,
+        memory: object | None = None,
         max_tokens: int = 400,
     ) -> None:
         self._llm = llm
@@ -48,6 +49,7 @@ class RoleplayService:
         self._history = history
         self._emotion = emotion
         self._voice = voice
+        self._memory = memory
         self._max_tokens = max_tokens
 
     @property
@@ -86,10 +88,20 @@ class RoleplayService:
                 cue.tts if cue is not None else self._voice.default_params,
                 lambda: turn.is_cancelled,
             )
+        recent: list[tuple[str, str]] = self._history.recent()
+        memory_block = None
+        if self._memory is not None:
+            try:
+                recent = await self._memory.recent_turns()  # type: ignore[attr-defined]
+                memory_block = await self._memory.context_block(user_text)  # type: ignore[attr-defined]
+            except Exception as exc:  # noqa: BLE001 - 记忆失败不影响对话
+                log.warning("memory context failed: %s", exc)
+                recent = self._history.recent()
         messages = self._builder.build(
-            self._history.recent(),
+            recent,
             user_text,
             emotion_block=emotion_block,
+            memory_block=memory_block,
         )
         # 每轮取一次配置快照：配置热更新后下一轮立即生效
         provider = self._llm.provider
@@ -214,9 +226,17 @@ class RoleplayService:
             )
             if self._emotion is not None and result.emotion:
                 # 建议在定稿后裁决，只影响下一轮的状态
-                await self._emotion.apply_llm_hint(
-                    hint_from_payload({"emotion": result.emotion})
-                )
+                await self._emotion.apply_llm_hint(hint_from_payload({"emotion": result.emotion}))
+            if self._memory is not None and result.text:
+                try:
+                    await self._memory.after_turn(  # type: ignore[attr-defined]
+                        user_text,
+                        result.text,
+                        provider=provider,
+                        turn_id=turn.id,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("memory after_turn failed: %s", exc)
             if tts is not None:
                 await tts.finish()
                 log.info(

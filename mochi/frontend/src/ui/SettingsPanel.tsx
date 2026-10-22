@@ -29,6 +29,20 @@ interface AvatarModel {
   expressions: number;
 }
 
+interface MemorySession {
+  id: string;
+  title: string;
+  message_count: number;
+  updated_at: number;
+}
+
+interface MemoryItem {
+  id: number;
+  type: string;
+  content: string;
+  importance: number;
+}
+
 interface MochiGlobal {
   live2d?: StageHandle;
   switchModel?: (id: string) => Promise<boolean>;
@@ -93,12 +107,18 @@ export function SettingsPanel({ onClose }: Props) {
   const [autostart, setAutostart] = useState(false);
   const [clickThrough, setClickThrough] = useState(false);
   const [windowBusy, setWindowBusy] = useState(false);
+  const [sessions, setSessions] = useState<MemorySession[]>([]);
+  const [currentSession, setCurrentSession] = useState('');
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [profile, setProfile] = useState<Record<string, string>>({});
+  const [routeMode, setRouteMode] = useState('auto');
 
   useEffect(() => {
     void loadConfig();
     void loadAvatarModels();
     void loadAudioDevices();
     void loadShellState();
+    void loadMemory();
     const names = getStage()?.getMotionNames() ?? [];
     setMotions(names);
     setSelectedMotion(names.includes('wedding') ? 'wedding' : (names[0] ?? ''));
@@ -119,6 +139,88 @@ export function SettingsPanel({ onClose }: Props) {
     localStorage.setItem('mochi.micDevice', deviceId);
     getMochi().recorder?.setDeviceId(deviceId);
     setStatus(deviceId ? '已切换麦克风（下一次录音生效）' : '已使用系统默认麦克风');
+  }
+
+  async function loadMemory(): Promise<void> {
+    try {
+      const [sessionResponse, memoryResponse] = await Promise.all([
+        fetch(`${config.apiBase}/api/v1/memory/sessions`, { headers: apiHeaders() }),
+        fetch(`${config.apiBase}/api/v1/memory/memories?limit=30`, { headers: apiHeaders() }),
+      ]);
+      if (sessionResponse.ok) {
+        const data = (await sessionResponse.json()) as {
+          sessions: MemorySession[];
+          current: string;
+        };
+        setSessions(data.sessions);
+        setCurrentSession(data.current);
+      }
+      if (memoryResponse.ok) {
+        const data = (await memoryResponse.json()) as {
+          memories: MemoryItem[];
+          profile: Record<string, string>;
+        };
+        setMemories(data.memories);
+        setProfile(data.profile);
+      }
+    } catch (error) {
+      console.warn('[memory] load failed', error);
+    }
+  }
+
+  async function switchMemorySession(id: string): Promise<void> {
+    try {
+      const response = await fetch(
+        `${config.apiBase}/api/v1/memory/sessions/${encodeURIComponent(id)}/switch`,
+        { method: 'POST', headers: apiHeaders() },
+      );
+      if (!response.ok) {
+        setStatus('切换会话失败');
+        return;
+      }
+      setCurrentSession(id);
+      setStatus('已切换会话');
+      await loadMemory();
+    } catch (error) {
+      setStatus(`切换会话失败：${String(error)}`);
+    }
+  }
+
+  async function deleteMemorySession(id: string): Promise<void> {
+    await fetch(`${config.apiBase}/api/v1/memory/sessions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: apiHeaders(),
+    });
+    await loadMemory();
+    setStatus('会话已删除');
+  }
+
+  async function deleteMemoryItem(id: number): Promise<void> {
+    await fetch(`${config.apiBase}/api/v1/memory/memories/${id}`, {
+      method: 'DELETE',
+      headers: apiHeaders(),
+    });
+    await loadMemory();
+    setStatus('记忆已删除');
+  }
+
+  async function forgetAll(): Promise<void> {
+    await fetch(`${config.apiBase}/api/v1/memory/forget`, {
+      method: 'POST',
+      headers: apiHeaders(),
+    });
+    await loadMemory();
+    setStatus('长期记忆已清空');
+  }
+
+  async function changeRouteMode(mode: string): Promise<void> {
+    setRouteMode(mode);
+    await fetch(`${config.apiBase}/api/v1/config/agent`, {
+      method: 'PATCH',
+      headers: apiHeaders(),
+      body: JSON.stringify({ route_mode: mode }),
+    });
+    setStatus(`路由模式：${mode}`);
   }
 
   async function loadShellState(): Promise<void> {
@@ -463,6 +565,55 @@ export function SettingsPanel({ onClose }: Props) {
           <p class="settings-hint">
             全局快捷键：Ctrl+Shift+M 显隐 · Ctrl+Shift+T 穿透 · Ctrl+Shift+Space 按住说话。
           </p>
+        </details>
+
+        <details class="settings-motions">
+          <summary>记忆与会话（S6：{sessions.length} 个会话 / {memories.length} 条记忆）</summary>
+          <label>
+            <span>路由模式</span>
+            <select value={routeMode} onChange={(event) => void changeRouteMode(event.currentTarget.value)}>
+              <option value="auto">auto（规则 + LLM 兜底）</option>
+              <option value="chat_only">chat_only（只闲聊）</option>
+              <option value="force_agent">force_agent（优先工具）</option>
+            </select>
+          </label>
+          <p class="settings-hint">
+            画像：{Object.entries(profile).map(([key, value]) => `${key}=${value}`).join('、') || '（空）'}
+          </p>
+          <div class="memory-list">
+            {sessions.slice(0, 5).map((item) => (
+              <div class={`memory-row${item.id === currentSession ? ' current' : ''}`} key={item.id}>
+                <span>
+                  {item.title} · {item.message_count} 条
+                </span>
+                <button type="button" onClick={() => void switchMemorySession(item.id)}>
+                  切换
+                </button>
+                <button type="button" onClick={() => void deleteMemorySession(item.id)}>
+                  删除
+                </button>
+              </div>
+            ))}
+          </div>
+          <div class="memory-list">
+            {memories.slice(0, 8).map((item) => (
+              <div class="memory-row" key={item.id}>
+                <span title={item.content}>{item.content}</span>
+                <button type="button" onClick={() => void deleteMemoryItem(item.id)}>
+                  删除
+                </button>
+              </div>
+            ))}
+            {memories.length === 0 && <p class="settings-hint">还没有长期记忆。</p>}
+          </div>
+          <div class="settings-motion-row">
+            <button type="button" onClick={() => void loadMemory()}>
+              刷新
+            </button>
+            <button type="button" onClick={() => void forgetAll()}>
+              清空全部记忆
+            </button>
+          </div>
         </details>
 
         <p class="settings-hint">

@@ -12,15 +12,25 @@ from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: str  # system | user | assistant | tool
     content: str
     tool_call_id: str | None = None
+    tool_calls: tuple[dict[str, Any], ...] = ()
 
     def to_wire(self) -> dict[str, Any]:
         data: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.tool_call_id:
             data["tool_call_id"] = self.tool_call_id
+        if self.tool_calls:
+            data["tool_calls"] = list(self.tool_calls)
         return data
 
 
@@ -48,6 +58,7 @@ class ChatResult:
     finish_reason: str | None = None
     usage: Usage | None = None
     reasoning: str = ""
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 class LLMError(Exception):
@@ -68,6 +79,16 @@ class LLMProvider(Protocol):
         temperature: float = 0.85,
         max_tokens: int = 512,
         disable_thinking: bool = False,
+    ) -> ChatResult: ...
+
+    async def chat_tools(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        tools: Sequence[dict[str, Any]] = (),
+        model: str | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
     ) -> ChatResult: ...
 
     def stream(

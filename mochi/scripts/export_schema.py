@@ -50,6 +50,8 @@ def build_bundle() -> dict[str, object]:
         "AsrPartialPayload": protocol.AsrPartialPayload,
         "AsrFinalPayload": protocol.AsrFinalPayload,
         "AsrErrorPayload": protocol.AsrErrorPayload,
+        "ToolConfirmRequestPayload": protocol.ToolConfirmRequestPayload,
+        "ToolConfirmResponsePayload": protocol.ToolConfirmResponsePayload,
     }
     defs: dict[str, object] = {}
     for name, model in models.items():

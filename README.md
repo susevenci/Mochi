@@ -26,7 +26,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ✅ 20/20（MVP 达成） |
 | S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ✅ 13/13 |
 | S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ✅ 12/12 |
-| S6 | 记忆 / Skills / 工具 | ⏳ |
+| S6 | 记忆 / Skills / 工具 | ✅ 15/15 |
 | S7 | 打磨与打包 | ⏳ |
 
 ### 里程碑
@@ -39,6 +39,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ✅ | PAD 曲线 + 连夸递减 + 人格差异 + 1h lonely + 8h 重逢；87% emotion coverage |
 | **M4 会说话** | 语音闭环 | ✅ | 按住说话→字幕→流式语音→口型→点击打断 21.5ms；首音 1475ms |
 | **M5 真桌宠** | 完整桌面应用 | ✅ | 双击即用、边车 5s 自愈、托盘常驻、穿透热区、开机自启、单实例 |
+| **M6 记得你** | 记忆与工具 | ✅ | 16 个工具 + 3 Skills；重启记得名字；40 轮后上下文不线性增长；提醒到点主动播报 |
 
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
@@ -50,7 +51,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 - 情感：连续夸奖 3 次增幅递减（≈1 : 0.7 : 0.49）；同句"你真笨"傲娇进 `hurt`、元气进 `amused`；关心进 `shy`
 - 情感：1 小时无互动转 `lonely`；`advance(8h)` 触发 `long_absence` 重逢且 valence 为正；SP4 五项指标全部健康
 - 语音：edge-tts 首音 **1475ms**（两次 1179/1475）；faster-whisper tiny 识别"你好呀 今天天气怎么样"；真实音频口型电平 0→0.746；点击打断 **21.5ms**
-- 质量：`ruff` 0 问题 / `mypy` 0 issue（78 文件）/ `pytest 150 passed` / `emotion/` 覆盖率 87% / 前端 4 项状态机测试 / `tsc` + `vite build` 通过
+- 质量：`ruff` 0 问题 / `mypy` 0 issue（94 文件）/ `pytest 169 passed` / `emotion/` 覆盖率 87% / 前端 4 项状态机测试 / `tsc` + `vite build` 通过
 
 ![S3 情感调试面板：PAD 曲线、标签时间轴、刺激注入器、状态机与触发源](docs/images/s3-emotion-panel.png)
 
@@ -131,7 +132,7 @@ Stimulus ──▶ 人格调制 ──▶ 软饱和 ──▶ 标签推导（16 
 | 重复刺激递减 | 同 tag 60s 内按 `0.7^n` 递减 |
 | 时间旅行 | `engine.advance(seconds)` 不等待真实时间；离线衰减 + 重逢开场白 |
 | 主动性 | 1h ≤3 次、间隔 ≥10min、quiet_hours 静默，文案来自角色卡模板 |
-| 持久化 | `store/emotion_repo.py`（原子 JSON；S6 替换为 SQLite，接口不变） |
+| 持久化 | `store/emotion_repo.py`（原子 JSON；SQLite 的 emotion_snapshots 表已建，迁移留待后续） |
 | 可观测 | `emotion.update` / `performance.cue` / 调试 API / DevPanel / 轨迹导出 |
 
 **三层编排的接入点**（`orchestration/`）：用户输入先施加刺激 → Roleplay 注入【内心状态】与表达约束 → 流式回复结束后裁决 LLM 情绪建议（只影响下一轮）→ 表现 cue 使用 turn 开始时的冻结快照（不变量 I3）。
@@ -238,6 +239,44 @@ npm.cmd --prefix desktop run tauri -- build --no-bundle
 > Tauri 内置 WebView2 可用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 接入 CDP 做自动化验收。
 
 **已知偏差**：边车重启后的"confused"表情提示未单独实现（前端自动重连、下一轮由情绪引擎决定表情）；设置面板的主动性/工具/记忆开关随 S6 补齐；106MB 单文件在 S7 用 onedir/裁剪瘦身。
+
+## 记忆与工具（S6）
+
+```
+用户输入 ──▶ Decision（规则 + LLM 兜底）
+              ├─ chat / emotional ──▶ Roleplay（画像 + 摘要 + 召回记忆）
+              └─ task ──▶ ack ──▶ Agent Core（工具循环，五道护栏）
+                                      ├─ SQLite：会话/消息/记忆/画像/提醒
+                                      ├─ Skills：list / activate / read
+                                      ├─ 提醒调度：到点主动播报
+                                      └─ 高风险工具：前端确认弹窗
+```
+
+| 能力 | 实现 / 实测 |
+| --- | --- |
+| SQLite | WAL + 单写者队列 + 7 张表（sessions/messages/memories/profiles/reminders/emotion_snapshots/metrics） |
+| 会话 | `/new` `/ls` `/switch` `/rename` `/delete`；多会话隔离 |
+| 长期记忆 | 规则抽取（名字/偏好/生日/显式嘱托）+ 可选小模型；FTS5 bigram 检索（bm25+importance+recency） |
+| 摘要压缩 | 超过 30 条消息后把旧轮次滚动合并；上下文只保留最近 20 条 + 摘要 |
+| 画像 | 名字/偏好写入 `profiles`；重启仍记得；`/forget` 清空 |
+| 工具 | **16 个**（含 Skills 3）：时间/提醒/记忆/搜索/天气/情绪/动作/画像/播报/打开链接 |
+| Agent Core | 8 步、单工具 30s、墙钟 120s、可取消、参数校验；错误回灌自愈 |
+| 高风险确认 | `tool.confirm_request` → 前端弹窗 → 60s 超时自动拒绝 |
+| Skills | 3 个技能包（提醒/情绪陪伴/早安）；路径穿越拒绝；30 分钟自动卸载 |
+| 提醒 | APScheduler（缺失时 asyncio loop 回落）；到点 `proactive.speak` + `proud` |
+
+**实测**：167→169 项后端测试；全局覆盖率 **82%**；真实对话中"我叫阿哲"写入画像，重启后仍能回答；"帮我记一下明天交稿"→ ack + 后台建提醒。
+
+```powershell
+# 会话/记忆/工具
+/ls
+/new
+/switch <id>
+/forget
+"帮我记一下明天下午交稿"
+```
+
+**已知偏差**：情绪引擎仍使用 JSON Repo（SQLite 的 `emotion_snapshots` 表已建，迁移留到后续）；`web_search`/`weather` 依赖公网，失败时以工具错误回灌；Skills 采用工具结果注入上下文，未做独立的上下文槽位。
 
 ## 目录结构
 

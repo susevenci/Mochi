@@ -9,9 +9,14 @@ from .config.llm_settings import LLMSettingsService
 from .config.settings import Settings
 from .config.user_settings import UserSettings
 from .emotion.engine import EmotionEngine
+from .memory.service import MemoryService
 from .memory.short_term import ShortTermMemory
+from .orchestration.confirmation import ConfirmationStore
 from .orchestration.orchestrator import Orchestrator
 from .providers.usage import UsageTracker
+from .skills.registry import SkillRegistry
+from .tools.agent_core import AgentCore
+from .tools.registry import ToolRegistry
 from .voice.pipeline import VoiceService
 
 
@@ -27,3 +32,8 @@ class AppContext:
     history: ShortTermMemory
     emotion: EmotionEngine
     voice: VoiceService
+    memory: MemoryService
+    skills: SkillRegistry
+    tools: ToolRegistry
+    agent: AgentCore
+    confirmations: ConfirmationStore

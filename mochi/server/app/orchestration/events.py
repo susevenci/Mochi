@@ -53,3 +53,13 @@ class EventSink(Protocol):
     async def audio_end(self, turn_id: str) -> None: ...
 
     async def audio_stop(self, turn_id: str) -> None: ...
+
+    async def confirm_request(
+        self,
+        turn_id: str,
+        request_id: str,
+        tool: str,
+        args: dict[str, Any],
+        *,
+        timeout_seconds: float = 60.0,
+    ) -> None: ...

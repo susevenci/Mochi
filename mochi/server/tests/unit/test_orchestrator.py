@@ -25,6 +25,8 @@ identity:
 
 
 class StubRoleplay:
+    provider = None
+
     def __init__(self) -> None:
         self.calls: list[str] = []
 
