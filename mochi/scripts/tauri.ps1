@@ -29,7 +29,10 @@ if (-not $binutilsBin -or -not (Test-Path $binutilsBin)) {
 }
 
 $env:PATH = "$binutilsBin;$env:PATH"
+$env:MOCHI_ROOT = $root
+$env:MOCHI_PYTHON = (Join-Path $root '.venv\python.exe')
 Write-Host "[tauri] binutils: $binutilsBin" -ForegroundColor Cyan
+Write-Host "[tauri] MOCHI_ROOT: $root" -ForegroundColor Cyan
 
 # 2) 默认参数：dev
 if ($TauriArgs.Count -eq 0) { $TauriArgs = @('dev') }

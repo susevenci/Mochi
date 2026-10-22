@@ -23,5 +23,6 @@ export interface ShellAdapter {
   show(): Promise<void>;
   hide(): Promise<void>;
   setAutostart(value: boolean): Promise<void>;
+  getAutostart(): Promise<boolean>;
   quit(): Promise<void>;
 }

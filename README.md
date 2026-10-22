@@ -25,7 +25,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | S2 | Live2D 呈现：待机/视线/表情叠加/动作队列/口型/交互/窗口记忆 | ✅ 14/14 |
 | S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ✅ 20/20（MVP 达成） |
 | S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ✅ 13/13 |
-| S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ⏳ |
+| S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ✅ 12/12 |
 | S6 | 记忆 / Skills / 工具 | ⏳ |
 | S7 | 打磨与打包 | ⏳ |
 
@@ -38,6 +38,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | **M2 可动** | 会呼吸的 Live2D | ✅ | 静置不静止（Δbreath=0.724 / Δbody=1.119）；6/6 自检全绿；口型电平 0.79 |
 | **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ✅ | PAD 曲线 + 连夸递减 + 人格差异 + 1h lonely + 8h 重逢；87% emotion coverage |
 | **M4 会说话** | 语音闭环 | ✅ | 按住说话→字幕→流式语音→口型→点击打断 21.5ms；首音 1475ms |
+| **M5 真桌宠** | 完整桌面应用 | ✅ | 双击即用、边车 5s 自愈、托盘常驻、穿透热区、开机自启、单实例 |
 
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
@@ -192,6 +193,51 @@ LLM 流式正文 ──句子切分──▶ edge-tts（并发预取下一句）
 > 模型不入库；首次识别自动下载到 `data/models/`。开发默认 `tiny`，追求识别率可切 `small`。
 
 **已知偏差**：edge-tts 的 pitch 只接受 Hz，对外仍是百分比语义（内部转 `+NHz`）；短句（<2s）常来不及产生 partial 字幕；VAD 使用能量阈值而非 silero。
+
+## 桌面壳（S5）
+
+```
+Tauri setup
+  ├─ 选空闲端口 + 随机 token ──▶ spawn mochi-server.exe / uvicorn
+  ├─ 健康探活（/health）──▶ navigate index.html?port=&token=
+  ├─ 托盘 + 全局快捷键 + 单实例插件
+  └─ 退出：POST /shutdown（落盘）→ 2s 后强杀兜底
+```
+
+| 能力 | 实现 / 实测 |
+| --- | --- |
+| 边车打包 | PyInstaller onefile `mochi-server.exe`（106MB；S7 瘦身），resource 随 Tauri 分发 |
+| 边车托管 | 动态端口、随机 token、`/health` 探活、崩溃重启 ≤3 次 |
+| 崩溃自愈 | kill 边车后 **5s 内**重启，前端 WS 自动重连 |
+| 托盘 | 显示/隐藏、置顶、穿透、设置、退出；关闭窗口只隐藏，进程常驻 |
+| 开机自启 | `tauri-plugin-autostart`；实测 enable→registry→disable |
+| 点击穿透 | `setIgnoreCursorEvents` + 右下 **90px 热区**轮询；实测 `WS_EX_TRANSPARENT` 随热区切换 |
+| 全局快捷键 | `Ctrl+Shift+M` 显隐 · `Ctrl+Shift+T` 穿透 · `Ctrl+Shift+Space` 按住说话 |
+| 单实例 | `tauri-plugin-single-instance`；二次启动聚焦已有窗口（进程数 1→1） |
+| 安全 | 仅绑 127.0.0.1、随机 token（HTTP/WS 401）、CSP、资源路径隔离 |
+| 优雅关闭 | `POST /api/v1/sys/shutdown` 先 flush 情绪再退出；实测端口随进程关闭 |
+| 启动体验 | `visible:false` → 模型就绪后 show → 260ms 淡入，无白闪 |
+
+![Tauri 桌面壳：透明置顶窗 + Live2D + 对话栏（桌面截图）](docs/images/s5-window.png)
+
+![S5 设置面板：语音设备、开机自启、点击穿透、托盘/退出](docs/images/s5-settings.png)
+
+**构建**：
+
+```powershell
+# 1) Python 边车（onefile）
+& scripts\py.ps1 scripts\build-sidecar.py
+
+# 2) 桌面壳（GNU 工具链 + rust-lld）
+powershell -ExecutionPolicy Bypass -File scripts\tauri.ps1 -TauriArgs build
+# 或不打安装包：
+npm.cmd --prefix desktop run tauri -- build --no-bundle
+```
+
+> 动态端口与 token 通过导航 URL 注入；前端所有 REST 走 `config.apiBase`，WS 走 `ws://127.0.0.1:<port>/ws?token=...`。
+> Tauri 内置 WebView2 可用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 接入 CDP 做自动化验收。
+
+**已知偏差**：边车重启后的"confused"表情提示未单独实现（前端自动重连、下一轮由情绪引擎决定表情）；设置面板的主动性/工具/记忆开关随 S6 补齐；106MB 单文件在 S7 用 onedir/裁剪瘦身。
 
 ## 目录结构
 

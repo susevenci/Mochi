@@ -59,6 +59,10 @@ export class TauriAdapter implements ShellAdapter {
     await this.invoke()('set_autostart', { value });
   }
 
+  async getAutostart(): Promise<boolean> {
+    return Boolean(await this.invoke()('get_autostart'));
+  }
+
   async quit(): Promise<void> {
     await this.invoke()('quit_app');
   }

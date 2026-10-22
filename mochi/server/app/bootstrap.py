@@ -45,7 +45,7 @@ def bootstrap(settings: Settings) -> AppContext:
     )
     user_settings = UserSettings(settings.data_dir / "settings.json")
 
-    cards = CardLoader(CHARACTERS_DIR, settings.character)
+    cards = CardLoader(settings.characters_path(), settings.character)
     builder = ContextBuilder(cards.current)
     history = ShortTermMemory(max_turns=20)
     llm = LLMSettingsService(settings, user_settings)

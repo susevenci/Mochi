@@ -519,7 +519,7 @@ function EmotionTab() {
 
   async function refreshHistory(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/emotion/history?limit=600', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/history?limit=600`, {
         headers: apiHeaders(),
       });
       if (!response.ok) return;
@@ -532,7 +532,7 @@ function EmotionTab() {
 
   async function refreshCatalog(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/emotion/catalog', { headers: apiHeaders() });
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/catalog`, { headers: apiHeaders() });
       if (!response.ok) {
         setStatus('情感目录读取失败');
         return;
@@ -558,7 +558,7 @@ function EmotionTab() {
     if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/v1/emotion/stimulus', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/stimulus`, {
         method: 'POST',
         headers: apiHeaders(),
         body: JSON.stringify({ tag: injectTag, magnitude: injectMagnitude }),
@@ -581,7 +581,7 @@ function EmotionTab() {
     if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/v1/emotion/advance', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/advance`, {
         method: 'POST',
         headers: apiHeaders(),
         body: JSON.stringify({ seconds: advanceSeconds }),
@@ -608,7 +608,7 @@ function EmotionTab() {
     if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/v1/emotion/persona', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/persona`, {
         method: 'PATCH',
         headers: apiHeaders(),
         body: JSON.stringify({
@@ -636,7 +636,7 @@ function EmotionTab() {
     if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/v1/emotion/persona/save', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/persona/save`, {
         method: 'POST',
         headers: apiHeaders(),
       });
@@ -655,7 +655,7 @@ function EmotionTab() {
 
   async function exportTrace(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/emotion/export?limit=1200', {
+      const response = await fetch(`${config.apiBase}/api/v1/emotion/export?limit=1200`, {
         headers: apiHeaders(),
       });
       if (!response.ok) {

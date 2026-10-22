@@ -1,0 +1,40 @@
+S5 桌面壳验收证据
+==================
+日期: 2026-10-22
+环境: Windows 10 / Rust 1.99.1 GNU / Tauri 2.12 / WebView2 155
+
+一、构建
+- sidecar: PyInstaller 6.22.3 onefile -> mochi-server.exe 106.3 MB
+- Tauri: cargo release GNU + rust-lld，mochi.exe 编译通过（--no-bundle）
+- frontend: tsc --noEmit + vite build 通过
+
+二、边车托管
+- 动态端口 50269/50688/50829/51076/51285（每次启动不同）
+- 随机 token 生效：无 token 的 /api/v1/sys/info 返回 401
+- /health 探活通过；kill 边车 5s 内重启，同端口恢复
+- quit_app 后 mochi / mochi-server 进程与端口全部退出
+- 打包边车独立运行 + /shutdown 返回 shutting_down 后退出
+
+三、桌面集成
+- 窗口: class=Tauri Window title='Mochi' visible=True size=420x560 topmost=True
+- 托盘: class=tray_icon_app 存在；WM_CLOSE 后进程存活、窗口隐藏
+- 快捷键: Ctrl+Shift+M 显隐 True -> False -> True
+- 单实例: 二次启动进程数 1 -> 1
+- 开机自启: set_autostart(true)->get=true；set_autostart(false)->get=false
+- 穿透热区: exstyle 0xC0138 (transparent=True) -> 进入右下 90px 0x40118 (False) -> 离开 0xC0138
+- 全局快捷键窗口: class=global_hotkey_app 存在
+
+四、安全与启动
+- CSP: connect-src ws/http 127.0.0.1:*，img-src 允许本地模型纹理，style/script 自限
+- CORS 仅允许 localhost/127.0.0.1/tauri.localhost
+- 动态端口 + token 通过导航 URL 注入；REST 走 config.apiBase
+- 启动 visible=false -> hello_ack -> 模型就绪 -> show + 260ms 淡入
+
+五、截图
+- docs/images/s5-window.png（透明置顶桌面窗 + qiye_10 + 对话栏）
+- docs/images/s5-settings.png（语音设备 / S5 自启·穿透·托盘）
+
+六、已知偏差
+- 边车 onefile 106MB，S7 瘦身
+- 边车重启后未单独播放 confused 表情，仅自动重连
+- 设置面板主动性/工具/记忆开关待 S6

@@ -66,7 +66,7 @@ const apiHeaders: Record<string, string> = config.token
   : {};
 
 /** 开发期经 Vite proxy 到后端 /live2d；模型本地存放，不入库 */
-const MODEL_URL = '/live2d/qiye_10/qiye_10.model3.json';
+const MODEL_URL = `${config.apiBase}/live2d/qiye_10/qiye_10.model3.json`;
 const MODEL_STORAGE_KEY = 'mochi.live2dModel';
 
 interface Live2DModelInfo {
@@ -93,7 +93,7 @@ interface BindingReport {
 
 async function fetchModels(): Promise<Live2DModelInfo[]> {
   try {
-    const response = await fetch('/api/v1/live2d/models', { headers: apiHeaders });
+    const response = await fetch(`${config.apiBase}/api/v1/live2d/models`, { headers: apiHeaders });
     if (!response.ok) return [];
     const data = (await response.json()) as { models: Live2DModelInfo[] };
     return data.models;
@@ -106,7 +106,7 @@ async function fetchModels(): Promise<Live2DModelInfo[]> {
 /** 角色卡 × 模型交叉校验（T2-13）：启动时拿一次，用于选择默认模型与告警 */
 async function fetchBinding(): Promise<BindingReport | null> {
   try {
-    const response = await fetch('/api/v1/live2d/binding', { headers: apiHeaders });
+    const response = await fetch(`${config.apiBase}/api/v1/live2d/binding`, { headers: apiHeaders });
     if (!response.ok) return null;
     return (await response.json()) as BindingReport;
   } catch (error) {
@@ -119,9 +119,13 @@ async function fetchBinding(): Promise<BindingReport | null> {
 const app = new Application({
   antialias: true,
   resizeTo: window,
+  backgroundAlpha: 0,
+  backgroundColor: 0x000000,
+  clearBeforeRender: true,
 });
 app.renderer.background.alpha = 0;
 const canvas = app.view as unknown as HTMLCanvasElement;
+canvas.style.background = 'transparent';
 dom.stage.appendChild(canvas);
 
 const live2d = new Live2DStage(app);
@@ -161,7 +165,7 @@ async function bootModel(): Promise<void> {
   const saved = localStorage.getItem(MODEL_STORAGE_KEY);
   const preferred = saved ?? binding?.resolved_model ?? null;
   const chosen = models.find((item) => item.id === preferred) ?? models[0];
-  const url = chosen?.url ?? MODEL_URL;
+  const url = chosen?.url ? `${config.apiBase}${chosen.url}` : MODEL_URL;
 
   if (binding && !binding.ok) {
     console.warn('[live2d] 角色卡/模型校验告警:', binding.warnings, binding.missing_motions);
@@ -197,7 +201,7 @@ async function switchModel(id: string): Promise<boolean> {
   lipSync.detach();
   live2d.destroy();
   try {
-    const caps = await live2d.load(target.url);
+    const caps = await live2d.load(`${config.apiBase}${target.url}`);
     hideFallback();
     localStorage.setItem(MODEL_STORAGE_KEY, id);
     await attachControllers(caps.mouthParamIds);
@@ -272,7 +276,7 @@ interface StoredWindowPosition {
 async function restoreWindowPosition(): Promise<void> {
   if (!shell.isDesktop) return;
   try {
-    const response = await fetch('/api/v1/config/user', { headers: apiHeaders });
+    const response = await fetch(`${config.apiBase}/api/v1/config/user`, { headers: apiHeaders });
     if (!response.ok) return;
     const data = (await response.json()) as { window?: { position?: StoredWindowPosition | null } };
     const position = data.window?.position;
@@ -289,7 +293,7 @@ async function persistWindowPosition(): Promise<void> {
   if (!shell.isDesktop) return;
   try {
     const position = await shell.getPosition();
-    await fetch('/api/v1/config/user', {
+    await fetch(`${config.apiBase}/api/v1/config/user`, {
       method: 'PATCH',
       headers: { ...apiHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -331,6 +335,7 @@ client.on('sys.hello_ack', (envelope: Envelope) => {
   };
   console.info('[mochi] backend ready', payload);
   dom.status.textContent = `ready v${String(payload.server_version ?? '?')}`;
+  bootOnce();
   if (payload.emotion) {
     ingestEmotion(payload.emotion);
     dom.fallback.dataset.emotion = payload.emotion.label ?? 'neutral';
@@ -585,7 +590,7 @@ async function showPendingGreeting(): Promise<void> {
   if (greetingShown) return;
   greetingShown = true;
   try {
-    const response = await fetch('/api/v1/emotion/greeting/consume', {
+    const response = await fetch(`${config.apiBase}/api/v1/emotion/greeting/consume`, {
       method: 'POST',
       headers: apiHeaders,
     });
@@ -604,7 +609,7 @@ async function showPendingGreeting(): Promise<void> {
 
 async function loadEmotionHistoryFromApi(): Promise<void> {
   try {
-    const response = await fetch('/api/v1/emotion/history?limit=600', {
+    const response = await fetch(`${config.apiBase}/api/v1/emotion/history?limit=600`, {
       headers: apiHeaders,
     });
     if (!response.ok) return;
@@ -690,12 +695,26 @@ dom.input.focus();
 client.connect();
 void restoreWindowPosition();
 void loadEmotionHistoryFromApi();
-// 模型就绪后再显示窗口，避免白闪（Tauri 下窗口以 visible=false 启动）
-void bootModel().finally(() => {
-  void shell.show().catch((error: unknown) => {
-    console.warn('[shell] show 失败:', error);
+// 等后端 hello_ack 后再加载模型并显示窗口：
+// Tauri 边车可能还在启动，提前显示会白闪（最多等 10s 后兜底显示）。
+let booted = false;
+function bootOnce(): void {
+  if (booted) return;
+  booted = true;
+  void bootModel().finally(() => {
+    void shell.show().catch((error: unknown) => {
+      console.warn('[shell] show 失败:', error);
+    });
+    // 窗口已显示后再淡入，避免 Tauri 启动白闪（T5-10）
+    document.body.classList.remove('booting');
   });
-});
+}
+setTimeout(() => {
+  if (!booted) {
+    console.warn('[boot] hello_ack 超时，先用兜底显示');
+    bootOnce();
+  }
+}, 10_000);
 
 // ── 配置面板与调试面板 ──
 // 两个面板都是全屏遮罩：打开一个前先卸掉另一个，否则右上角按钮点不到
@@ -759,4 +778,14 @@ debugBtn?.addEventListener('click', (event) => {
   switchModel,
   voice,
   recorder,
+  // 全局快捷键由 Rust 侧 eval 调用（T5-07）
+  startVoiceFromShortcut: () => void startListening(),
+  stopVoiceFromShortcut: () => void finishListening(),
+  toggleVoiceFromShortcut: () => {
+    if (voice.isSpeaking) interruptSpeech();
+    else if (listening) void finishListening();
+    else void startListening();
+  },
+  interrupt: interruptSpeech,
+  openSettings: () => document.querySelector<HTMLButtonElement>('#open-settings')?.click(),
 };

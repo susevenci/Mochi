@@ -37,3 +37,7 @@ htmlcov/
 .tmp/
 **/emotion_state.json
 mochi/live2d/
+
+# S5 打包中间产物
+build/
+dist/

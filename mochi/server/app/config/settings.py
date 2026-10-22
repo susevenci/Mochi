@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     # ── 角色（S1 起使用）──
     character: str = "tsundere"
+    characters_dir: Path | None = None
 
     # ── 语音（S4）──
     voice_enabled: bool = False
@@ -72,6 +73,15 @@ class Settings(BaseSettings):
     @property
     def db_path(self) -> Path:
         return self.data_dir / "mochi.db"
+
+    def characters_path(self) -> Path:
+        """角色卡目录：显式配置 > 仓库自带 > 用户数据目录。"""
+        if self.characters_dir is not None:
+            return self.characters_dir
+        repo_cards = PROJECT_ROOT / "characters"
+        if repo_cards.is_dir():
+            return repo_cards
+        return self.data_dir / "characters"
 
     def ensure_dirs(self) -> None:
         """运行时数据与代码分离（第 10 章原则 5）。"""

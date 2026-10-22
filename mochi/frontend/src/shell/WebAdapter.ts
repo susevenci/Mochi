@@ -24,5 +24,9 @@ export class WebAdapter implements ShellAdapter {
 
   async setAutostart(): Promise<void> {}
 
+  async getAutostart(): Promise<boolean> {
+    return false;
+  }
+
   async quit(): Promise<void> {}
 }

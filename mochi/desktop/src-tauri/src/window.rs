@@ -3,8 +3,22 @@
 // 只做"窗口操作"，不含任何业务逻辑：前端经 ShellAdapter 调用这些命令，
 // 命令名与 frontend/src/shell/TauriAdapter.ts 一一对应。
 
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
+use std::thread;
+#[cfg(windows)]
+use std::time::Duration;
+
 use serde::Serialize;
 use tauri::{AppHandle, PhysicalPosition, WebviewWindow};
+use tauri_plugin_autostart::ManagerExt;
+
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::POINT;
+#[cfg(windows)]
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+
+static HOT_ZONE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 /// 窗口几何：物理像素 + DPI 缩放 + 所在显示器名（计划书 9.2.3 的"显示器标识 + 坐标"）。
 #[derive(Debug, Serialize)]
@@ -21,11 +35,65 @@ pub fn set_always_on_top(window: WebviewWindow, value: bool) -> Result<(), Strin
 }
 
 /// 点击穿透：开启后鼠标事件落到下层窗口（S5 会配合热区唤回）。
+/// 点击穿透 + 右下热区：穿透时轮询全局光标，进入右下 90px 就临时恢复交互。
+pub fn apply_click_through(window: &WebviewWindow, value: bool) -> Result<(), String> {
+    if value {
+        window
+            .set_ignore_cursor_events(true)
+            .map_err(|err| err.to_string())?;
+        #[cfg(windows)]
+        start_hot_zone(window.clone());
+        Ok(())
+    } else {
+        HOT_ZONE_ACTIVE.store(false, Ordering::SeqCst);
+        window
+            .set_ignore_cursor_events(false)
+            .map_err(|err| err.to_string())
+    }
+}
+
 #[tauri::command]
 pub fn set_click_through(window: WebviewWindow, value: bool) -> Result<(), String> {
-    window
-        .set_ignore_cursor_events(value)
-        .map_err(|err| err.to_string())
+    apply_click_through(&window, value)
+}
+
+#[cfg(windows)]
+fn start_hot_zone(window: WebviewWindow) {
+    if HOT_ZONE_ACTIVE.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let hwnd = match window.hwnd() {
+        Ok(hwnd) => hwnd.0 as isize,
+        Err(_) => {
+            HOT_ZONE_ACTIVE.store(false, Ordering::SeqCst);
+            return;
+        }
+    };
+    thread::spawn(move || {
+        let mut interactive = false;
+        while HOT_ZONE_ACTIVE.load(Ordering::SeqCst) {
+            unsafe {
+                let mut point = POINT { x: 0, y: 0 };
+                let mut rect = windows_sys::Win32::Foundation::RECT {
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                };
+                if GetCursorPos(&mut point) != 0 && GetWindowRect(hwnd as *mut core::ffi::c_void, &mut rect) != 0 {
+                    let hot = point.x >= rect.right - 90
+                        && point.x <= rect.right
+                        && point.y >= rect.bottom - 90
+                        && point.y <= rect.bottom;
+                    if hot != interactive {
+                        let _ = window.set_ignore_cursor_events(!hot);
+                        interactive = hot;
+                    }
+                }
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    });
 }
 
 /// 拖拽移动窗口：必须在鼠标左键按下时调用（前端 pointerdown → 超过阈值后触发）。
@@ -88,9 +156,17 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-/// 开机自启由 S5 的 tauri-plugin-autostart 提供；S2 显式返回"未实现"，
-/// 避免前端以为设置成功（比静默 no-op 更安全）。
 #[tauri::command]
-pub fn set_autostart(_value: bool) -> Result<(), String> {
-    Err("autostart 尚未实现（计划：S5 接入 tauri-plugin-autostart）".into())
+pub fn set_autostart(app: AppHandle, value: bool) -> Result<(), String> {
+    let manager = app.autolaunch();
+    if value {
+        manager.enable().map_err(|err| err.to_string())
+    } else {
+        manager.disable().map_err(|err| err.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|err| err.to_string())
 }

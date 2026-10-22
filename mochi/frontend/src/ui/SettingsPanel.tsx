@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { resolveConfig } from '../config';
+import type { ShellAdapter } from '../shell/ShellAdapter';
 
 interface LlmConfigView {
   base_url: string;
@@ -31,6 +32,7 @@ interface AvatarModel {
 interface MochiGlobal {
   live2d?: StageHandle;
   switchModel?: (id: string) => Promise<boolean>;
+  shell?: ShellAdapter;
   recorder?: {
     setDeviceId: (id: string) => void;
     setMode: (mode: 'push_to_talk' | 'always_on') => void;
@@ -88,11 +90,15 @@ export function SettingsPanel({ onClose }: Props) {
   );
   const [status, setStatus] = useState('加载中…');
   const [busy, setBusy] = useState(false);
+  const [autostart, setAutostart] = useState(false);
+  const [clickThrough, setClickThrough] = useState(false);
+  const [windowBusy, setWindowBusy] = useState(false);
 
   useEffect(() => {
     void loadConfig();
     void loadAvatarModels();
     void loadAudioDevices();
+    void loadShellState();
     const names = getStage()?.getMotionNames() ?? [];
     setMotions(names);
     setSelectedMotion(names.includes('wedding') ? 'wedding' : (names[0] ?? ''));
@@ -115,6 +121,61 @@ export function SettingsPanel({ onClose }: Props) {
     setStatus(deviceId ? '已切换麦克风（下一次录音生效）' : '已使用系统默认麦克风');
   }
 
+  async function loadShellState(): Promise<void> {
+    const shell = getMochi().shell;
+    if (!shell?.isDesktop) return;
+    try {
+      setAutostart(await shell.getAutostart());
+    } catch (error) {
+      console.warn('[shell] getAutostart failed', error);
+    }
+  }
+
+  async function toggleAutostart(value: boolean): Promise<void> {
+    const shell = getMochi().shell;
+    if (!shell || windowBusy) return;
+    setWindowBusy(true);
+    try {
+      await shell.setAutostart(value);
+      setAutostart(await shell.getAutostart());
+      setStatus(value ? '已开启开机自启' : '已关闭开机自启');
+    } catch (error) {
+      setStatus(`开机自启设置失败：${String(error)}`);
+    } finally {
+      setWindowBusy(false);
+    }
+  }
+
+  async function toggleClickThrough(value: boolean): Promise<void> {
+    const shell = getMochi().shell;
+    if (!shell || windowBusy) return;
+    setWindowBusy(true);
+    try {
+      await shell.setClickThrough(value);
+      setClickThrough(value);
+      setStatus(
+        value
+          ? '已穿透：右下角热区或 Ctrl+Shift+T 唤回交互'
+          : '已恢复正常交互',
+      );
+    } catch (error) {
+      setStatus(`穿透设置失败：${String(error)}`);
+    } finally {
+      setWindowBusy(false);
+    }
+  }
+
+  async function hideToTray(): Promise<void> {
+    const shell = getMochi().shell;
+    if (!shell) return;
+    await shell.minimizeToTray();
+    setStatus('已隐藏到托盘；点击托盘图标或 Ctrl+Shift+M 唤回');
+  }
+
+  async function quitApp(): Promise<void> {
+    await getMochi().shell?.quit();
+  }
+
   function changeAlwaysOn(value: boolean): void {
     setAlwaysOn(value);
     localStorage.setItem('mochi.voiceMode', value ? 'always_on' : 'push_to_talk');
@@ -124,7 +185,7 @@ export function SettingsPanel({ onClose }: Props) {
 
   async function loadAvatarModels(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/live2d/models', { headers: apiHeaders() });
+      const response = await fetch(`${config.apiBase}/api/v1/live2d/models`, { headers: apiHeaders() });
       if (!response.ok) return;
       const data = (await response.json()) as { models: AvatarModel[] };
       setAvatarModels(data.models);
@@ -164,7 +225,7 @@ export function SettingsPanel({ onClose }: Props) {
 
   async function loadConfig(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/config/llm', { headers: apiHeaders() });
+      const response = await fetch(`${config.apiBase}/api/v1/config/llm`, { headers: apiHeaders() });
       if (!response.ok) {
         setStatus(`读取失败：${await readError(response)}`);
         return;
@@ -196,7 +257,7 @@ export function SettingsPanel({ onClose }: Props) {
       payload.model = model.trim();
     }
     try {
-      const response = await fetch('/api/v1/config/llm', {
+      const response = await fetch(`${config.apiBase}/api/v1/config/llm`, {
         method: 'PATCH',
         headers: apiHeaders(),
         body: JSON.stringify(payload),
@@ -221,7 +282,7 @@ export function SettingsPanel({ onClose }: Props) {
     setStatus('正在保存并获取模型列表…');
     try {
       if (!(await save())) return;
-      const response = await fetch('/api/v1/llm/models', { headers: apiHeaders() });
+      const response = await fetch(`${config.apiBase}/api/v1/llm/models`, { headers: apiHeaders() });
       if (!response.ok) {
         setStatus(`获取模型失败：${await readError(response)}`);
         return;
@@ -368,6 +429,39 @@ export function SettingsPanel({ onClose }: Props) {
           </div>
           <p class="settings-hint">
             语音识别在后端 faster-whisper 完成；播放回复期间麦克风自动关闭（半双工）。
+          </p>
+        </details>
+
+        <details class="settings-motions">
+          <summary>桌面壳（S5：自启 / 穿透 / 托盘）</summary>
+          <label class="settings-checkbox">
+            <input
+              type="checkbox"
+              checked={autostart}
+              disabled={windowBusy}
+              onChange={(event) => void toggleAutostart(event.currentTarget.checked)}
+            />
+            <span>开机自启（Windows 登录后自动启动）</span>
+          </label>
+          <label class="settings-checkbox">
+            <input
+              type="checkbox"
+              checked={clickThrough}
+              disabled={windowBusy}
+              onChange={(event) => void toggleClickThrough(event.currentTarget.checked)}
+            />
+            <span>点击穿透（右下 90px 热区或 Ctrl+Shift+T 唤回）</span>
+          </label>
+          <div class="settings-motion-row">
+            <button type="button" onClick={() => void hideToTray()}>
+              隐藏到托盘
+            </button>
+            <button type="button" onClick={() => void quitApp()}>
+              退出 Mochi
+            </button>
+          </div>
+          <p class="settings-hint">
+            全局快捷键：Ctrl+Shift+M 显隐 · Ctrl+Shift+T 穿透 · Ctrl+Shift+Space 按住说话。
           </p>
         </details>
 

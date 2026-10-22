@@ -90,6 +90,10 @@ class CardLoader:
     def current(self) -> CharacterCard:
         return self._current
 
+    @property
+    def directory(self) -> Path:
+        return self._dir
+
     def list_ids(self) -> list[str]:
         if not self._dir.exists():
             return []

@@ -2,7 +2,7 @@
 # 透明 = WS_EX_LAYERED(0x80000)；置顶 = WS_EX_TOPMOST(0x8)；不占任务栏 = WS_EX_TOOLWINDOW(0x80)。
 param(
     [string]$Exe = "",
-    [int]$WaitSeconds = 12
+    [int]$WaitSeconds = 20
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,7 +48,7 @@ public class WinEnum {
 
 $proc = Start-Process -FilePath $Exe -PassThru
 Write-Host "[win] started pid=$($proc.Id)"
-Start-Sleep -Seconds 8
+Start-Sleep -Seconds $WaitSeconds
 
 if ($proc.HasExited) {
     Write-Host "[win] FAIL: 进程已退出 exit=$($proc.ExitCode)"

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -17,12 +18,13 @@ from urllib.parse import urlparse
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .bootstrap import CHARACTERS_DIR, bootstrap
+from .bootstrap import bootstrap
 from .config.character_card import Persona
 from .config.llm_settings import LLMConfig, mask_key
 from .config.settings import Settings
@@ -143,6 +145,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await ctx.voice.aclose()
 
     app = FastAPI(title="Mochi Server", version=__version__, lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=(
+            r"^(https?://(localhost|127\.0\.0\.1|tauri\.localhost)(:\d+)?|tauri://localhost)$"
+        ),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.state.ctx = ctx
     app.state.manager = manager
 
@@ -166,6 +176,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "mode": cfg.voice_input_mode,
             },
         }
+
+    @app.post("/api/v1/sys/shutdown", dependencies=[Depends(require_token)])
+    async def shutdown() -> dict[str, str]:
+        """优雅关闭：先落盘情绪，再让边车退出（Tauri 会在 2s 后强杀兜底）。"""
+        ctx.emotion.persist()
+
+        async def _exit() -> None:
+            await asyncio.sleep(0.1)
+            os._exit(0)
+
+        asyncio.create_task(_exit())
+        return {"status": "shutting_down"}
 
     @app.get("/api/v1/sys/info", dependencies=[Depends(require_token)])
     async def sys_info() -> dict[str, object]:
@@ -342,7 +364,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/v1/emotion/persona/save", dependencies=[Depends(require_token)])
     async def save_persona() -> dict[str, Any]:
         card = ctx.characters.current
-        path = CHARACTERS_DIR / f"{card.id}.yaml"
+        path = ctx.characters.directory / f"{card.id}.yaml"
         if not path.exists():
             raise HTTPException(status_code=404, detail=f"card not found: {card.id}")
         backup = path.with_suffix(".yaml.bak")
