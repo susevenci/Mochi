@@ -25,6 +25,10 @@ export class WSClient {
 
   constructor(private readonly options: WSClientOptions) {}
 
+  get isOpen(): boolean {
+    return this.socket?.readyState === WebSocket.OPEN;
+  }
+
   connect(): void {
     if (this.disposed || this.socket) return;
     this.options.onStatus?.('connecting');

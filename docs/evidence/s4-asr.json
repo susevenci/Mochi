@@ -1,0 +1,11 @@
+{
+  "text": "你好呀 今天天气怎么样",
+  "duration_s": 2.663,
+  "transcribe_ms": 2100.9,
+  "features": {
+    "rms": 0.0863,
+    "duration_s": 2.663,
+    "speech_rate": 10.514,
+    "magnitude_scale": 1.325
+  }
+}

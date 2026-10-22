@@ -720,3 +720,76 @@ body {
   flex: 0 0 76px;
   width: 76px;
 }
+
+/* ── S4 语音：麦克风、实时字幕、半双工状态 ── */
+#mic-button {
+  padding: 8px 12px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 94%);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+}
+
+#mic-button:hover {
+  background: #fff;
+}
+
+#mic-button[data-state='listening'] {
+  border-color: #e05a5a;
+  background: #ffecec;
+  animation: mic-pulse 1.1s ease-in-out infinite;
+}
+
+#mic-button[data-state='thinking'] {
+  border-color: #d5a33c;
+  background: #fff7e2;
+}
+
+#mic-button[data-state='speaking'] {
+  border-color: #688cff;
+  background: #eef2ff;
+}
+
+#mic-button[data-state='interrupted'] {
+  border-color: #aaa;
+  background: #f3f4f8;
+}
+
+#mic-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(224 90 90 / 25%);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(224 90 90 / 0%);
+  }
+}
+
+#asr-caption {
+  position: fixed;
+  left: 50%;
+  bottom: 58px;
+  width: min(420px, calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgb(20 22 28 / 78%);
+  color: #f0f3fa;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#asr-caption[hidden] {
+  display: none;
+}

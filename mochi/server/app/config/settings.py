@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     # ── 角色（S1 起使用）──
     character: str = "tsundere"
 
+    # ── 语音（S4）──
+    voice_enabled: bool = False
+    voice_input_mode: str = "push_to_talk"
+    tts_voice: str = "zh-CN-XiaoxiaoNeural"
+    tts_volume: float = 0.9
+    asr_enabled: bool = True
+    asr_model: str = "tiny"
+    asr_language: str = "zh"
+    asr_compute_type: str = "int8"
+    asr_initial_prompt: str = "以下是桌宠和用户的普通话对话。"
+    voice_max_utterance_seconds: float = 30.0
+
     @field_validator("data_dir", mode="before")
     @classmethod
     def _resolve_blank_data_dir(cls, value: object) -> object:

@@ -40,6 +40,16 @@ def build_bundle() -> dict[str, object]:
         "EmotionCausePayload": protocol.EmotionCausePayload,
         "EmotionUpdatePayload": protocol.EmotionUpdatePayload,
         "ProactiveSpeakPayload": protocol.ProactiveSpeakPayload,
+        "AudioInBeginPayload": protocol.AudioInBeginPayload,
+        "AudioInChunkPayload": protocol.AudioInChunkPayload,
+        "AudioInEndPayload": protocol.AudioInEndPayload,
+        "AudioOutBeginPayload": protocol.AudioOutBeginPayload,
+        "AudioOutChunkPayload": protocol.AudioOutChunkPayload,
+        "AudioOutEndPayload": protocol.AudioOutEndPayload,
+        "AudioStopPayload": protocol.AudioStopPayload,
+        "AsrPartialPayload": protocol.AsrPartialPayload,
+        "AsrFinalPayload": protocol.AsrFinalPayload,
+        "AsrErrorPayload": protocol.AsrErrorPayload,
     }
     defs: dict[str, object] = {}
     for name, model in models.items():

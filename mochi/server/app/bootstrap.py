@@ -25,6 +25,7 @@ from .orchestration.roleplay import RoleplayService
 from .orchestration.turn_registry import TurnRegistry
 from .providers.usage import UsageTracker
 from .store.emotion_repo import JsonEmotionRepo
+from .voice.pipeline import VoiceService
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ def bootstrap(settings: Settings) -> AppContext:
         repo=JsonEmotionRepo(settings.data_dir / "emotion_state.json"),
     )
     emotion.load()
+    voice = VoiceService(settings)
 
     orchestrator = Orchestrator(
         decision=DecisionService(),
@@ -64,6 +66,7 @@ def bootstrap(settings: Settings) -> AppContext:
             builder=builder,
             history=history,
             emotion=emotion,
+            voice=voice,
         ),
         turns=TurnRegistry(),
         emotion=emotion,
@@ -86,4 +89,5 @@ def bootstrap(settings: Settings) -> AppContext:
         usage=usage,
         history=history,
         emotion=emotion,
+        voice=voice,
     )

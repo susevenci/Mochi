@@ -12,6 +12,7 @@ from .emotion.engine import EmotionEngine
 from .memory.short_term import ShortTermMemory
 from .orchestration.orchestrator import Orchestrator
 from .providers.usage import UsageTracker
+from .voice.pipeline import VoiceService
 
 
 @dataclass
@@ -25,3 +26,4 @@ class AppContext:
     usage: UsageTracker
     history: ShortTermMemory
     emotion: EmotionEngine
+    voice: VoiceService

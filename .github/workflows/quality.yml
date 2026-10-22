@@ -44,3 +44,5 @@ jobs:
         run: npm ci --prefix mochi/frontend
       - name: Typecheck and build
         run: npm run build --prefix mochi/frontend
+      - name: Frontend tests
+        run: npm test --prefix mochi/frontend

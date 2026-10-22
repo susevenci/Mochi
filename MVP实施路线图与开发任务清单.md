@@ -929,31 +929,31 @@ IDLE ──(按下录音)──▶ LISTENING ──(VAD 结束/松手)──▶ 
 
 ### 4.5 S4 语音链路（5–7 d，13 项）
 
-- [ ] **T4-01** `[BE]` **ASR Provider 与 faster-whisper** · 1d ← T1-01
+- [x] **T4-01** `[BE]` **ASR Provider 与 faster-whisper** · 1d ← T1-01
   - 产出 `voice/asr/base.py` + `faster_whisper.py`（int8 / small / vad_filter / initial_prompt） ｜ 验收：中文短句识别可用；`initial_prompt` 注入后专有名词识别率提升
-- [ ] **T4-02** `[BE]` **VAD 端点检测** · 0.5d ← T4-01
+- [x] **T4-02** `[BE]` **VAD 端点检测** · 0.5d ← T4-01
   - 产出 `voice/asr/vad.py`（silero） ｜ 验收：静音 700ms 判定结束；连续说话不误切
-- [ ] **T4-03** `[BE]` **流式解码与 asr 消息** · 1d ← T4-01,T4-02
+- [x] **T4-03** `[BE]` **流式解码与 asr 消息** · 1d ← T4-01,T4-02
   - 产出 `asr.partial` / `asr.final` / `asr.error` ｜ 验收：边说边出中间结果；最终文本 1s 内产出
-- [ ] **T4-04** `[FE]` **录音器（两模式）** · 1d ← T0-09
+- [x] **T4-04** `[FE]` **录音器（两模式）** · 1d ← T0-09
   - 产出 `audio/Recorder.ts`：16kHz mono、`push_to_talk` / `always_on` ｜ 验收：两模式可切换；上行帧 20–40ms；设备枚举正确
-- [ ] **T4-05** `[BE]` **TTS Provider 与 edge-tts** · 1d ← T1-01
+- [x] **T4-05** `[BE]` **TTS Provider 与 edge-tts** · 1d ← T1-01
   - 产出 `voice/tts/base.py` + `edge_tts.py`（rate 倍率 / pitch 百分比偏移 / volume 倍率） ｜ 验收：`pitch=7.0` 输出 `"+7.0%"`；三种后端同签名
-- [ ] **T4-06** `[BE]` **文本预处理** · 0.5d ← T4-05
+- [x] **T4-06** `[BE]` **文本预处理** · 0.5d ← T4-05
   - 产出 `voice/tts/text_prep.py` ｜ 验收：Markdown/颜文字/`<<<MOOD>>>` 块被剥离；长句按 40 字切分不切断词
-- [ ] **T4-07** `[BE]` **句子级流式与预取** · 1d ← T4-06
+- [x] **T4-07** `[BE]` **句子级流式与预取** · 1d ← T4-06
   - 产出 首句出音 + 并发预取下一句 + 队列水位控制 ｜ 验收：首音延迟 ≤1.5s；不出现"为预取而多合成"（日志统计合成句数）
-- [ ] **T4-08** `[BE]` **情绪化韵律接入** · 0.5d ← T3-13,T4-05
+- [x] **T4-08** `[BE]` **情绪化韵律接入** · 0.5d ← T3-13,T4-05
   - 产出 `cue.tts` → `synthesize()` 参数通路 ｜ 验收：`sad` 状态语速明显变慢、音调变低（录两段对比）
-- [ ] **T4-09** `[FE]` **下行音频与无缝播放** · 1d ← T4-07
+- [x] **T4-09** `[FE]` **下行音频与无缝播放** · 1d ← T4-07
   - 产出 `audio.out_begin/out/out_end` + `Player` 队列 ｜ 验收：段间无爆音无空隙（`start(when)` 用上一段结束时间）；水位 <1s 才请求下一段
-- [ ] **T4-10** `[FE]` **真口型链路** · 0.5d ← T4-09,T2-10
+- [x] **T4-10** `[FE]` **真口型链路** · 0.5d ← T4-09,T2-10
   - 产出 `audio.out` → `AnalyserNode` → `LipSync` ｜ 验收：真实语音播放时嘴型同步，持续 30s 无延迟漂移
-- [ ] **T4-11** `[FE]` **半双工与音频会话状态机** · 0.5d ← T4-04,T4-09
+- [x] **T4-11** `[FE]` **半双工与音频会话状态机** · 0.5d ← T4-04,T4-09
   - 产出 `audio/HalfDuplex.ts`（五态机，见 3.5.5） ｜ 验收：播放期间不发音频帧；打断后能立刻重新录音；非法转移有日志
-- [ ] **T4-12** `[BE/FE]` **打断全链路** · 1d ← T1-07,T4-11
+- [x] **T4-12** `[BE/FE]` **打断全链路** · 1d ← T1-07,T4-11
   - 产出 6 环节取消链（见 1.3.5） ｜ 验收：播放中点击桌宠 → 0.3s 内静音 + 立即接受新输入
-- [ ] **T4-13** `[BE]` **音频特征修正情绪强度** · 0.5d ← T4-01,T3-08
+- [x] **T4-13** `[BE]` **音频特征修正情绪强度** · 0.5d ← T4-01,T3-08
   - 产出 `emotion/stimuli/audio_features.py`（volume_rms / speech_rate） ｜ 验收：大声吼 vs 小声低语，`magnitude` 差异 ≥20%（可测）
 
 ### 4.6 S5 桌面壳（12 项）
@@ -1291,6 +1291,42 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 | 状态机可视化 | 展示当前标签的规则/守卫，不是力导向图 | S7 可补 |
 
 **质量门禁**：`ruff 0` / `mypy 0`（66 文件）/ `pytest 139 passed` / `emotion/` 87% / `tsc + vite build` 通过 / 契约无漂移。
+
+---
+
+### 4.16 S4 实施进度（2026-10-22）
+
+**完成度：S4 13/13 项落地**。语音链路从"文字桌宠"变为"可听、可打断"的完整闭环。
+
+#### 关键交付
+
+| 能力 | 实现 / 证据 |
+| --- | --- |
+| ASR | faster-whisper CPU int8，惰性加载；真实语音"你好呀，今天天气怎么样？"→"你好呀 今天天气怎么样"（`docs/evidence/s4-asr.json`） |
+| 中间字幕 | 会话每 1.2s 对滚动缓冲识别，`asr.partial` 推送；短句常来不及产生 partial |
+| TTS | edge-tts 流式 MP3；首音 **1179–1475ms**，两句话 28 chunks / 19728 bytes（`docs/evidence/s4-tts.json`） |
+| 句子级流式 + 预取 | LLM 首个句号触发首句；下一句并发合成，队列最多 1 句 |
+| 下行播放 | MediaSource 边收边播，不支持时整段 decode；AnalyserNode 驱动真实口型（max 0.746） |
+| 半双工 | `IDLE→LISTENING→THINKING→SPEAKING→INTERRUPTED` 五态机；4 项 Node 测试 |
+| 打断 | 点击桌宠：**21.5ms** 内 `audio.isPlaying=false`、voice=idle（`docs/evidence/s4-browser.json`） |
+| 音频情绪 | RMS/语速 → magnitude_scale 1.325；低语/大声差异 >20% |
+| 设备/模式 | 麦克风设备枚举、push_to_talk / always_on 切换；always_on 静音 700ms 自动结束 |
+
+#### 验收取证
+
+- 截图：`docs/images/s4-voice-chat.png`（真实 ASR/TTS + 假麦克风 + 假 LLM 的浏览器全链路）
+- 指标：`docs/evidence/s4-asr.json`、`s4-tts.json`、`s4-browser.json`、`s4-acceptance.txt`
+- 后端 150 tests（含语音 11 项）/ 前端 4 项 Node 测试 / ruff+mypy 0 / tsc+vite build 通过
+
+#### 已知偏差
+
+| 项 | 现状 | 后续 |
+| --- | --- | --- |
+| pitch 格式 | edge-tts 只接受 Hz，对外保留百分比语义并内部转 `+NHz` | 换供应商时统一为百分比 |
+| 端点检测 | 服务端能量 VAD；always_on 由前端本地 VAD 触发 | 可替换 silero |
+| 中间字幕 | 机制完整，但 tiny 模型对 <2s 短句来不及出 partial | S7 可改用流式 ASR 或更小模型 |
+| ASR 模型 | 开发默认 tiny（CPU 友好），模型不入库 | 发布版按需下载 small |
+| 情绪韵律听感 | 参数通路已接（rate/pitch/volume），未做双段录音对比 | S7 调参 |
 
 ---
 

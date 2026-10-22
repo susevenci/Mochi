@@ -94,7 +94,12 @@ class MockLLMProvider:
 @pytest.fixture()
 def settings(tmp_path: Path) -> Settings:
     """临时数据目录 + 关闭 token，避免污染 %APPDATA% 与依赖本机环境。"""
-    return Settings(data_dir=tmp_path, server_token="", llm_api_key="")
+    return Settings(
+        data_dir=tmp_path,
+        server_token="",
+        llm_api_key="",
+        voice_enabled=False,
+    )
 
 
 @pytest.fixture()

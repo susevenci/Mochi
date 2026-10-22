@@ -35,6 +35,16 @@ class MessageType(StrEnum):
     INTERACTION_EVENT = "interaction.event"
     EMOTION_UPDATE = "emotion.update"
     PROACTIVE_SPEAK = "proactive.speak"
+    AUDIO_IN_BEGIN = "audio.in_begin"
+    AUDIO_IN_CHUNK = "audio.in_chunk"
+    AUDIO_IN_END = "audio.in_end"
+    AUDIO_OUT_BEGIN = "audio.out_begin"
+    AUDIO_OUT_CHUNK = "audio.out_chunk"
+    AUDIO_OUT_END = "audio.out_end"
+    AUDIO_STOP = "audio.stop"
+    ASR_PARTIAL = "asr.partial"
+    ASR_FINAL = "asr.final"
+    ASR_ERROR = "asr.error"
 
 
 class Envelope(BaseModel):
@@ -188,3 +198,54 @@ class InteractionEventPayload(BaseModel):
     count: int = Field(default=1, ge=1)
     x: float = 0.0
     y: float = 0.0
+
+
+class AudioInBeginPayload(BaseModel):
+    sample_rate: int = Field(default=16_000, ge=8_000, le=48_000)
+    format: str = "pcm16"
+    mode: str = "push_to_talk"
+
+
+class AudioInChunkPayload(BaseModel):
+    data: str  # base64 PCM16
+    seq: int = 0
+
+
+class AudioInEndPayload(BaseModel):
+    reason: str = "user"
+
+
+class AudioOutBeginPayload(BaseModel):
+    sample_rate: int = 24_000
+    format: str = "mp3"
+
+
+class AudioOutChunkPayload(BaseModel):
+    data: str  # base64 audio
+    seq: int = 0
+    format: str = "mp3"
+
+
+class AudioOutEndPayload(BaseModel):
+    pass
+
+
+class AudioStopPayload(BaseModel):
+    reason: str = "user"
+
+
+class AsrPartialPayload(BaseModel):
+    text: str
+    confidence: float = 0.0
+
+
+class AsrFinalPayload(BaseModel):
+    text: str
+    language: str = "zh"
+    confidence: float = 0.0
+    features: dict[str, float] = Field(default_factory=dict)
+
+
+class AsrErrorPayload(BaseModel):
+    code: str
+    detail: str = ""

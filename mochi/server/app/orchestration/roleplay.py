@@ -19,6 +19,8 @@ from app.emotion.stimuli.text_analyzer import hint_from_payload
 from app.memory.context_builder import ContextBuilder
 from app.memory.short_term import ShortTermMemory
 from app.providers.base import LLMError, LLMProvider
+from app.voice.pipeline import TTSStreamer, VoiceService
+from app.voice.tts.text_prep import SentenceSplitter
 
 from .events import CuePayload, EventSink, FinalPayload
 from .mood_parser import MoodStreamParser
@@ -37,6 +39,7 @@ class RoleplayService:
         builder: ContextBuilder,
         history: ShortTermMemory,
         emotion: EmotionEngine | None = None,
+        voice: VoiceService | None = None,
         max_tokens: int = 400,
     ) -> None:
         self._llm = llm
@@ -44,6 +47,7 @@ class RoleplayService:
         self._builder = builder
         self._history = history
         self._emotion = emotion
+        self._voice = voice
         self._max_tokens = max_tokens
 
     @property
@@ -65,12 +69,22 @@ class RoleplayService:
         if frozen is None and self._emotion is not None:
             frozen = self._emotion.snapshot()
         emotion_block = None
+        cue = self._emotion.map_to_presentation(frozen) if self._emotion and frozen else None
         if self._emotion is not None and frozen is not None:
             # 一轮内表情/TTS 参数来自同一份不可变快照（不变量 I3）
             emotion_block = (
                 self._emotion.prompt_block(frozen)
                 + "\n\n"
                 + format_style_constraints(self._emotion.style_constraints(frozen))
+            )
+        splitter = SentenceSplitter()
+        tts: TTSStreamer | None = None
+        if self._voice is not None:
+            tts = self._voice.open_streamer(
+                turn.id,
+                sink,
+                cue.tts if cue is not None else self._voice.default_params,
+                lambda: turn.is_cancelled,
             )
         messages = self._builder.build(
             self._history.recent(),
@@ -106,11 +120,19 @@ class RoleplayService:
                     if first_token_ms is None:
                         first_token_ms = int((time.perf_counter() - started) * 1000)
                     await sink.delta(turn.id, out)
+                    if tts is not None:
+                        for sentence in splitter.feed(out):
+                            tts.feed(sentence)
 
             result = parser.finish()
+            if tts is not None:
+                for sentence in splitter.flush():
+                    tts.feed(sentence)
             latency_ms = int((time.perf_counter() - started) * 1000)
 
             if turn.is_cancelled:
+                if tts is not None:
+                    tts.cancel()
                 log.info(
                     "roleplay cancelled turn=%s first_token_ms=%s latency_ms=%d",
                     turn.id,
@@ -143,8 +165,7 @@ class RoleplayService:
                 result.parsed,
             )
             # 表现指令来自 turn 开始时的冻结快照，LLM 建议只影响下一轮
-            if self._emotion is not None and frozen is not None:
-                cue = self._emotion.map_to_presentation(frozen)
+            if cue is not None:
                 await sink.cue(
                     turn.id,
                     CuePayload(
@@ -196,7 +217,18 @@ class RoleplayService:
                 await self._emotion.apply_llm_hint(
                     hint_from_payload({"emotion": result.emotion})
                 )
+            if tts is not None:
+                await tts.finish()
+                log.info(
+                    "tts done turn=%s sentences=%d first_audio_ms=%s error=%s",
+                    turn.id,
+                    tts.sentences,
+                    tts.first_audio_ms,
+                    tts.error or "-",
+                )
         except LLMError as exc:
+            if tts is not None:
+                tts.cancel()
             latency_ms = int((time.perf_counter() - started) * 1000)
             log.warning(
                 "roleplay llm error turn=%s code=%s detail=%s",

@@ -1,5 +1,178 @@
 {
   "$defs": {
+    "AsrErrorPayload": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "AsrErrorPayload",
+      "type": "object"
+    },
+    "AsrFinalPayload": {
+      "properties": {
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "features": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Features",
+          "type": "object"
+        },
+        "language": {
+          "default": "zh",
+          "title": "Language",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "AsrFinalPayload",
+      "type": "object"
+    },
+    "AsrPartialPayload": {
+      "properties": {
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "AsrPartialPayload",
+      "type": "object"
+    },
+    "AudioInBeginPayload": {
+      "properties": {
+        "format": {
+          "default": "pcm16",
+          "title": "Format",
+          "type": "string"
+        },
+        "mode": {
+          "default": "push_to_talk",
+          "title": "Mode",
+          "type": "string"
+        },
+        "sample_rate": {
+          "default": 16000,
+          "maximum": 48000,
+          "minimum": 8000,
+          "title": "Sample Rate",
+          "type": "integer"
+        }
+      },
+      "title": "AudioInBeginPayload",
+      "type": "object"
+    },
+    "AudioInChunkPayload": {
+      "properties": {
+        "data": {
+          "title": "Data",
+          "type": "string"
+        },
+        "seq": {
+          "default": 0,
+          "title": "Seq",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "title": "AudioInChunkPayload",
+      "type": "object"
+    },
+    "AudioInEndPayload": {
+      "properties": {
+        "reason": {
+          "default": "user",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "AudioInEndPayload",
+      "type": "object"
+    },
+    "AudioOutBeginPayload": {
+      "properties": {
+        "format": {
+          "default": "mp3",
+          "title": "Format",
+          "type": "string"
+        },
+        "sample_rate": {
+          "default": 24000,
+          "title": "Sample Rate",
+          "type": "integer"
+        }
+      },
+      "title": "AudioOutBeginPayload",
+      "type": "object"
+    },
+    "AudioOutChunkPayload": {
+      "properties": {
+        "data": {
+          "title": "Data",
+          "type": "string"
+        },
+        "format": {
+          "default": "mp3",
+          "title": "Format",
+          "type": "string"
+        },
+        "seq": {
+          "default": 0,
+          "title": "Seq",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "title": "AudioOutChunkPayload",
+      "type": "object"
+    },
+    "AudioOutEndPayload": {
+      "properties": {},
+      "title": "AudioOutEndPayload",
+      "type": "object"
+    },
+    "AudioStopPayload": {
+      "properties": {
+        "reason": {
+          "default": "user",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "AudioStopPayload",
+      "type": "object"
+    },
     "ChatAgentDeltaPayload": {
       "properties": {
         "delta": {
@@ -466,7 +639,17 @@
         "performance.cue",
         "interaction.event",
         "emotion.update",
-        "proactive.speak"
+        "proactive.speak",
+        "audio.in_begin",
+        "audio.in_chunk",
+        "audio.in_end",
+        "audio.out_begin",
+        "audio.out_chunk",
+        "audio.out_end",
+        "audio.stop",
+        "asr.partial",
+        "asr.final",
+        "asr.error"
       ],
       "title": "MessageType",
       "type": "string"

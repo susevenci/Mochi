@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import time
@@ -21,6 +22,15 @@ from app.gateway.auth import is_authorized
 from app.gateway.errors import ErrorCode, error_envelope
 from app.gateway.protocol import (
     PROTOCOL_VERSION,
+    AsrErrorPayload,
+    AsrFinalPayload,
+    AsrPartialPayload,
+    AudioInBeginPayload,
+    AudioInChunkPayload,
+    AudioOutBeginPayload,
+    AudioOutChunkPayload,
+    AudioOutEndPayload,
+    AudioStopPayload,
     ChatAgentDeltaPayload,
     ChatAgentFinalPayload,
     ChatUserInputPayload,
@@ -35,6 +45,10 @@ from app.gateway.protocol import (
 from app.orchestration.events import CuePayload, EventSink, FinalPayload
 from app.orchestration.orchestrator import Orchestrator
 from app.utils.ids import ulid
+from app.voice.asr.base import ASRResult
+from app.voice.asr.features import AudioFeatures
+from app.voice.asr.session import AsrSession, VoiceState
+from app.voice.pipeline import VoiceService
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +127,25 @@ class WSSink:
         )
         await self._ws.send_json(_envelope(MessageType.PERFORMANCE_CUE, body, turn_id))
 
+    async def audio_begin(self, turn_id: str, *, fmt: str, sample_rate: int) -> None:
+        body = AudioOutBeginPayload(format=fmt, sample_rate=sample_rate)
+        await self._ws.send_json(_envelope(MessageType.AUDIO_OUT_BEGIN, body, turn_id))
+
+    async def audio_chunk(self, turn_id: str, seq: int, chunk: bytes) -> None:
+        body = AudioOutChunkPayload(
+            data=base64.b64encode(chunk).decode("ascii"),
+            seq=seq,
+        )
+        await self._ws.send_json(_envelope(MessageType.AUDIO_OUT_CHUNK, body, turn_id))
+
+    async def audio_end(self, turn_id: str) -> None:
+        await self._ws.send_json(
+            _envelope(MessageType.AUDIO_OUT_END, AudioOutEndPayload(), turn_id)
+        )
+
+    async def audio_stop(self, turn_id: str) -> None:
+        await self._ws.send_json(_envelope(MessageType.AUDIO_STOP, AudioStopPayload(), turn_id))
+
 
 def _envelope(env_type: str, payload: Any, turn_id: str | None = None) -> dict[str, Any]:
     data = payload.model_dump() if hasattr(payload, "model_dump") else payload
@@ -142,12 +175,86 @@ async def _handle_chat(env: Envelope, ws: WebSocket, orchestrator: Orchestrator)
     task.add_done_callback(_on_chat_task_done)
 
 
+async def _handle_audio_begin(
+    env: Envelope,
+    ws: WebSocket,
+    orchestrator: Orchestrator | None,
+    voice: VoiceService | None,
+    state: VoiceState,
+) -> None:
+    if voice is None or voice.asr is None:
+        await ws.send_json(
+            _envelope(
+                MessageType.ASR_ERROR,
+                AsrErrorPayload(code="ASR_UNAVAILABLE", detail="ASR 未启用或未安装"),
+            )
+        )
+        return
+    if state.session is not None:
+        state.session.cancel()
+    try:
+        payload = AudioInBeginPayload.model_validate(env.payload)
+    except ValidationError as exc:
+        detail = str(exc.errors()[0].get("msg", "invalid payload"))
+        await ws.send_json(error_envelope(ErrorCode.BAD_ENVELOPE, detail=detail))
+        return
+
+    sink = WSSink(ws)
+
+    async def on_partial(text: str) -> None:
+        await ws.send_json(
+            _envelope(MessageType.ASR_PARTIAL, AsrPartialPayload(text=text), env.turn_id)
+        )
+
+    async def on_final(result: ASRResult, mode: str, features: AudioFeatures) -> None:
+        turn_id = ulid()
+        await ws.send_json(
+            _envelope(
+                MessageType.ASR_FINAL,
+                AsrFinalPayload(
+                    text=result.text,
+                    language=result.language,
+                    confidence=result.confidence,
+                    features=features.to_payload(),
+                ),
+                turn_id,
+            )
+        )
+        if orchestrator is not None:
+            task = asyncio.create_task(
+                orchestrator.handle_chat(
+                    turn_id,
+                    result.text,
+                    sink,
+                    magnitude_scale=features.magnitude_scale,
+                )
+            )
+            task.add_done_callback(_on_chat_task_done)
+
+    async def on_error(code: str, detail: str) -> None:
+        await ws.send_json(
+            _envelope(MessageType.ASR_ERROR, AsrErrorPayload(code=code, detail=detail))
+        )
+
+    session = AsrSession(
+        provider=voice.asr,
+        on_partial=on_partial,
+        on_final=on_final,
+        on_error=on_error,
+        max_seconds=30.0,
+    )
+    session.begin(mode=payload.mode, sample_rate=payload.sample_rate)
+    state.session = session
+
+
 async def _dispatch(
     raw: str,
     ws: WebSocket,
     server_version: str,
     orchestrator: Orchestrator | None,
     emotion: EmotionEngine | None = None,
+    voice: VoiceService | None = None,
+    voice_state: VoiceState | None = None,
 ) -> None:
     """单条消息的分发。任何异常都转成 ``sys.error``，绝不中断连接。"""
     try:
@@ -195,6 +302,51 @@ async def _dispatch(
         if orchestrator is not None and env.turn_id:
             cancelled = orchestrator.interrupt(env.turn_id)
             log.info("interrupt turn=%s accepted=%s", env.turn_id, cancelled)
+        if voice_state is not None and voice_state.session is not None:
+            voice_state.session.cancel()
+        if env.turn_id:
+            await ws.send_json(
+                _envelope(MessageType.AUDIO_STOP, AudioStopPayload(reason="user"), env.turn_id)
+            )
+        return
+    if env.type == MessageType.AUDIO_IN_BEGIN:
+        if voice_state is None:
+            await ws.send_json(
+                _envelope(
+                    MessageType.ASR_ERROR,
+                    AsrErrorPayload(code="ASR_UNAVAILABLE", detail="语音状态未初始化"),
+                )
+            )
+            return
+        await _handle_audio_begin(env, ws, orchestrator, voice, voice_state)
+        return
+    if env.type == MessageType.AUDIO_IN_CHUNK:
+        if voice_state is None or voice_state.session is None:
+            await ws.send_json(
+                _envelope(
+                    MessageType.ASR_ERROR,
+                    AsrErrorPayload(code="ASR_NOT_STARTED", detail="先发送 audio.in_begin"),
+                )
+            )
+            return
+        try:
+            payload = AudioInChunkPayload.model_validate(env.payload)
+            pcm = base64.b64decode(payload.data, validate=True)
+        except (ValidationError, ValueError) as exc:
+            await ws.send_json(
+                _envelope(
+                    MessageType.ASR_ERROR,
+                    AsrErrorPayload(code="BAD_AUDIO_CHUNK", detail=str(exc)),
+                )
+            )
+            return
+        await voice_state.session.feed(pcm)
+        return
+    if env.type == MessageType.AUDIO_IN_END:
+        if voice_state is not None and voice_state.session is not None:
+            session = voice_state.session
+            voice_state.session = None
+            await session.end()
         return
     if env.type == MessageType.INTERACTION_EVENT:
         try:
@@ -226,6 +378,7 @@ def create_ws_router(
     server_version: str,
     orchestrator: Orchestrator | None = None,
     emotion: EmotionEngine | None = None,
+    voice: VoiceService | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -237,14 +390,25 @@ def create_ws_router(
 
         await ws.accept()
         manager.add(ws)
+        voice_state = VoiceState()
         log.info("ws connected total=%d", manager.count)
         try:
             while True:
                 raw = await ws.receive_text()
-                await _dispatch(raw, ws, server_version, orchestrator, emotion)
+                await _dispatch(
+                    raw,
+                    ws,
+                    server_version,
+                    orchestrator,
+                    emotion,
+                    voice,
+                    voice_state,
+                )
         except WebSocketDisconnect:
             pass
         finally:
+            if voice_state.session is not None:
+                voice_state.session.cancel()
             manager.discard(ws)
             log.info("ws disconnected total=%d", manager.count)
 

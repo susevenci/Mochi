@@ -3,6 +3,57 @@
 
 export const PROTOCOL_VERSION = 1;
 
+export interface AsrErrorPayload {
+  code: string;
+  detail?: string;
+}
+
+export interface AsrFinalPayload {
+  confidence?: number;
+  features?: Record<string, number>;
+  language?: string;
+  text: string;
+}
+
+export interface AsrPartialPayload {
+  confidence?: number;
+  text: string;
+}
+
+export interface AudioInBeginPayload {
+  format?: string;
+  mode?: string;
+  sample_rate?: number;
+}
+
+export interface AudioInChunkPayload {
+  data: string;
+  seq?: number;
+}
+
+export interface AudioInEndPayload {
+  reason?: string;
+}
+
+export interface AudioOutBeginPayload {
+  format?: string;
+  sample_rate?: number;
+}
+
+export interface AudioOutChunkPayload {
+  data: string;
+  format?: string;
+  seq?: number;
+}
+
+export interface AudioOutEndPayload {
+
+}
+
+export interface AudioStopPayload {
+  reason?: string;
+}
+
 export interface ChatAgentDeltaPayload {
   delta: string;
   done?: boolean;
@@ -74,7 +125,7 @@ export interface InteractionEventPayload {
   y?: number;
 }
 
-export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event" | "emotion.update" | "proactive.speak";
+export type MessageType = "sys.hello" | "sys.hello_ack" | "sys.ping" | "sys.pong" | "sys.error" | "sys.status" | "chat.user_input" | "chat.agent_delta" | "chat.agent_final" | "chat.interrupt" | "performance.cue" | "interaction.event" | "emotion.update" | "proactive.speak" | "audio.in_begin" | "audio.in_chunk" | "audio.in_end" | "audio.out_begin" | "audio.out_chunk" | "audio.out_end" | "audio.stop" | "asr.partial" | "asr.final" | "asr.error";
 
 export interface PADPayload {
   arousal: number;

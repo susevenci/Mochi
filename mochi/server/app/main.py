@@ -140,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await proactive_task
             unsubscribe()
             await ctx.emotion.stop()
+            await ctx.voice.aclose()
 
     app = FastAPI(title="Mochi Server", version=__version__, lifespan=lifespan)
     app.state.ctx = ctx
@@ -159,6 +160,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "uptime_s": round(time.time() - ctx.started_at, 3),
             "connections": manager.count,
             "emotion": ctx.emotion.state.label,
+            "voice": {
+                "tts": ctx.voice.enabled,
+                "asr": cfg.asr_enabled,
+                "mode": cfg.voice_input_mode,
+            },
         }
 
     @app.get("/api/v1/sys/info", dependencies=[Depends(require_token)])
@@ -374,6 +380,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             __version__,
             ctx.orchestrator,
             emotion=ctx.emotion,
+            voice=ctx.voice,
         )
     )
 

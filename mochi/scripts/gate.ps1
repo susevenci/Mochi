@@ -61,7 +61,7 @@ if (-not $Quick) {
     $frontendPkg = Get-Content frontend\package.json -Raw | ConvertFrom-Json
     if ($frontendPkg.scripts.PSObject.Properties.Name -contains 'test') {
         Invoke-Step 'frontend-test' {
-            npm.cmd --prefix frontend test -- --run
+            npm.cmd --prefix frontend test
         }
     }
 }

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "gen:types": "node ../scripts/gen-types.mjs"
+    "gen:types": "node ../scripts/gen-types.mjs",
+    "test": "node --test --experimental-strip-types tests/*.test.ts"
   },
   "dependencies": {
     "pixi-live2d-display": "^0.4.0",

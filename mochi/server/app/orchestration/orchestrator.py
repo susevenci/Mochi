@@ -34,7 +34,14 @@ class Orchestrator:
         self._turns = turns
         self._emotion = emotion
 
-    async def handle_chat(self, turn_id: str, user_text: str, sink: EventSink) -> None:
+    async def handle_chat(
+        self,
+        turn_id: str,
+        user_text: str,
+        sink: EventSink,
+        *,
+        magnitude_scale: float = 1.0,
+    ) -> None:
         decision = await self._decision.classify(user_text)
         log.info(
             "decision turn=%s route=%s rule=%s latency_ms=%d",
@@ -61,10 +68,17 @@ class Orchestrator:
 
         snapshot = None
         if self._emotion is not None:
-            snapshot = await self._emotion.apply_text(user_text)
+            snapshot = await self._emotion.apply_text(
+                user_text,
+                magnitude_scale=magnitude_scale,
+            )
             if not self._emotion.last_text_analysis or not self._emotion.last_text_analysis.hit:
                 # Level 2 只做一次很短的分类；失败/超时不影响主链路
-                snapshot = await self._emotion.apply_text_llm(user_text, self._roleplay.provider)
+                snapshot = await self._emotion.apply_text_llm(
+                    user_text,
+                    self._roleplay.provider,
+                    magnitude_scale=magnitude_scale,
+                )
 
         turn = self._turns.create(turn_id)
         try:

@@ -1,0 +1,38 @@
+S4 语音链路验收证据
+====================
+日期: 2026-10-22
+环境: Windows 10 / Python 3.12.15 / Edge headless (Playwright) / faster-whisper tiny int8
+
+一、真实 TTS（edge-tts，两句话，假 LLM 流式）
+- 首音: 1475 ms（两次实测 1179 / 1475，要求 ≤1500 ms）
+- audio_begin: 166 ms
+- 音频块: 28 / 19728 bytes / audio_end=1 / 总时长 3373 ms
+- 句子级流式 + 下一句并发预取（队列最多 1 句）
+- 详见 docs/evidence/s4-tts.json
+
+二、真实 ASR（faster-whisper tiny，CPU int8）
+- 输入: edge-tts 合成的“你好呀，今天天气怎么样？”（2.663s）
+- 识别: “你好呀 今天天气怎么样”
+- 识别耗时: 2100.9 ms（首次含模型加载；模型已缓存）
+- 音频特征: rms=0.0863 / speech_rate=10.514 / magnitude_scale=1.325
+- 详见 docs/evidence/s4-asr.json
+
+三、浏览器全链路（真实 ASR/TTS + 假 LLM，Edge headless + 假麦克风 WAV）
+- 按住说话 → ASR final → 流式回复 → 流式 MP3 播放：通过
+- 语音会话状态: thinking → speaking；audio.isPlaying=true
+- 口型电平: max=0.746 / min=0（真实 TTS 音频驱动 AnalyserNode）
+- 点击桌宠打断: 21.5 ms 内 audio.isPlaying=false、voice=idle（要求 ≤300 ms）
+- 截图: docs/images/s4-voice-chat.png
+- 详见 docs/evidence/s4-browser.json
+
+四、自动化
+- 后端 150 tests（含语音 11 项：文本切句/ASR 会话/VAD/特征/TTS 流/取消/WS 音频协议/Roleplay 集成）
+- 前端半双工五态机 4 项 Node 测试（合法/非法转移、录音许可、订阅）
+- ruff 0 / mypy 0（78 文件）/ tsc + vite build 通过
+
+五、已知偏差
+- edge-tts 的 pitch 只接受 Hz，不接受百分比：对外仍用“百分比语义”，网关转换为 +NHz（单测覆盖）。
+- 服务端 VAD 用能量阈值（保留 silero 接口）；always_on 的端点由前端本地 VAD 触发。
+- 开发默认 ASR_MODEL=tiny（CPU 延迟友好），可切 small；模型不入库，首次识别从 HF 下载。
+- 中间字幕机制已实现并有单测；短句（<2s）常来不及出 partial，长句会出现。
+- 半双工五态机在浏览器中验证；非法转移由前端日志记录，未做 UI 阻断提示。

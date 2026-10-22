@@ -31,6 +31,10 @@ interface AvatarModel {
 interface MochiGlobal {
   live2d?: StageHandle;
   switchModel?: (id: string) => Promise<boolean>;
+  recorder?: {
+    setDeviceId: (id: string) => void;
+    setMode: (mode: 'push_to_talk' | 'always_on') => void;
+  };
 }
 
 function getMochi(): MochiGlobal {
@@ -75,16 +79,48 @@ export function SettingsPanel({ onClose }: Props) {
   const [avatarModels, setAvatarModels] = useState<AvatarModel[]>([]);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState('');
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMic, setSelectedMic] = useState(
+    () => localStorage.getItem('mochi.micDevice') ?? '',
+  );
+  const [alwaysOn, setAlwaysOn] = useState(
+    () => localStorage.getItem('mochi.voiceMode') === 'always_on',
+  );
   const [status, setStatus] = useState('加载中…');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     void loadConfig();
     void loadAvatarModels();
+    void loadAudioDevices();
     const names = getStage()?.getMotionNames() ?? [];
     setMotions(names);
     setSelectedMotion(names.includes('wedding') ? 'wedding' : (names[0] ?? ''));
   }, []);
+
+  async function loadAudioDevices(): Promise<void> {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setAudioInputs(devices.filter((device) => device.kind === 'audioinput'));
+    } catch (error) {
+      console.warn('[voice] 设备枚举失败', error);
+    }
+  }
+
+  function changeMic(deviceId: string): void {
+    setSelectedMic(deviceId);
+    localStorage.setItem('mochi.micDevice', deviceId);
+    getMochi().recorder?.setDeviceId(deviceId);
+    setStatus(deviceId ? '已切换麦克风（下一次录音生效）' : '已使用系统默认麦克风');
+  }
+
+  function changeAlwaysOn(value: boolean): void {
+    setAlwaysOn(value);
+    localStorage.setItem('mochi.voiceMode', value ? 'always_on' : 'push_to_talk');
+    getMochi().recorder?.setMode(value ? 'always_on' : 'push_to_talk');
+    setStatus(value ? '常开麦克风：静音 700ms 后自动结束' : '按住说话模式');
+  }
 
   async function loadAvatarModels(): Promise<void> {
     try {
@@ -302,6 +338,37 @@ export function SettingsPanel({ onClose }: Props) {
             </button>
           </div>
           <p class="settings-hint">点击角色也会触发摸头 / 戳身体的动作。</p>
+        </details>
+
+        <details class="settings-motions">
+          <summary>语音输入（S4：设备 / 模式）</summary>
+          <label class="settings-checkbox">
+            <input
+              type="checkbox"
+              checked={alwaysOn}
+              onChange={(event) => changeAlwaysOn(event.currentTarget.checked)}
+            />
+            <span>常开麦克风（静音 700ms 自动结束；默认按住说话）</span>
+          </label>
+          <label class="settings-avatar">
+            <span>麦克风设备</span>
+            <select value={selectedMic} onChange={(event) => changeMic(event.currentTarget.value)}>
+              <option value="">系统默认</option>
+              {audioInputs.map((device, index) => (
+                <option key={device.deviceId || index} value={device.deviceId}>
+                  {device.label || `麦克风 ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div class="settings-motion-row">
+            <button type="button" onClick={() => void loadAudioDevices()}>
+              重新扫描设备
+            </button>
+          </div>
+          <p class="settings-hint">
+            语音识别在后端 faster-whisper 完成；播放回复期间麦克风自动关闭（半双工）。
+          </p>
         </details>
 
         <p class="settings-hint">

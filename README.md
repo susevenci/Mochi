@@ -24,7 +24,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | S1 | 对话闭环：Provider、角色卡、纯净上下文、流式双通道解析、WS、前端 UI | ✅ 13/13 |
 | S2 | Live2D 呈现：待机/视线/表情叠加/动作队列/口型/交互/窗口记忆 | ✅ 14/14 |
 | S3 | 情感引擎：PAD 状态机、衰减、人格调制、调试面板 | ✅ 20/20（MVP 达成） |
-| S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ⏳ |
+| S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ✅ 13/13 |
 | S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ⏳ |
 | S6 | 记忆 / Skills / 工具 | ⏳ |
 | S7 | 打磨与打包 | ⏳ |
@@ -36,7 +36,8 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | **M0 可连** | 三层空壳跑通 | ✅ | WS 握手 + 断线重连；壳窗口 420×560 透明置顶 |
 | **M1 可聊** | 有人设的流式对话 | ✅ | 首字 0.10s（探针）/ 185–966ms（含上下文）；`/role set` 热切换 |
 | **M2 可动** | 会呼吸的 Live2D | ✅ | 静置不静止（Δbreath=0.724 / Δbody=1.119）；6/6 自检全绿；口型电平 0.79 |
-| **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ✅ | PAD 曲线 + 连夸递减 + 人格差异 + 1h lonely + 8h 重逢；139 tests / 87% emotion coverage |
+| **M3 有情绪（MVP）** | 四通道联动的情绪系统 | ✅ | PAD 曲线 + 连夸递减 + 人格差异 + 1h lonely + 8h 重逢；87% emotion coverage |
+| **M4 会说话** | 语音闭环 | ✅ | 按住说话→字幕→流式语音→口型→点击打断 21.5ms；首音 1475ms |
 
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
@@ -47,7 +48,8 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 - 桌面壳：透明 + 置顶 + 不占任务栏；位置记忆存 `settings.json`，重启后精确回到原坐标
 - 情感：连续夸奖 3 次增幅递减（≈1 : 0.7 : 0.49）；同句"你真笨"傲娇进 `hurt`、元气进 `amused`；关心进 `shy`
 - 情感：1 小时无互动转 `lonely`；`advance(8h)` 触发 `long_absence` 重逢且 valence 为正；SP4 五项指标全部健康
-- 质量：`ruff` 0 问题 / `mypy` 0 issue（66 文件）/ `pytest 139 passed` / `emotion/` 覆盖率 87% / `tsc` + `vite build` 通过
+- 语音：edge-tts 首音 **1475ms**（两次 1179/1475）；faster-whisper tiny 识别"你好呀 今天天气怎么样"；真实音频口型电平 0→0.746；点击打断 **21.5ms**
+- 质量：`ruff` 0 问题 / `mypy` 0 issue（78 文件）/ `pytest 150 passed` / `emotion/` 覆盖率 87% / 前端 4 项状态机测试 / `tsc` + `vite build` 通过
 
 ![S3 情感调试面板：PAD 曲线、标签时间轴、刺激注入器、状态机与触发源](docs/images/s3-emotion-panel.png)
 
@@ -157,6 +159,40 @@ cd mochi\server
 & scripts\py.ps1 scripts\analyze_trajectory.py --simulate 200 --seed 42
 ```
 
+## 语音链路（S4）
+
+```
+麦克风 PCM16 ──WS audio.in_*──▶ 能量 VAD/会话缓冲 ──▶ faster-whisper
+                                                     │ asr.partial / asr.final
+                                                     ▼
+                                              Orchestrator（带音量倍率）
+                                                     │
+LLM 流式正文 ──句子切分──▶ edge-tts（并发预取下一句）──▶ MP3 chunks
+                                                     │ audio.out_begin/chunk/end
+                                                     ▼
+                                       MediaSource 流式播放 ──▶ AnalyserNode ──▶ 口型
+```
+
+| 能力 | 实现 |
+| --- | --- |
+| ASR | faster-whisper CPU int8，惰性加载；`ASR_MODEL=tiny/small`；`initial_prompt` 注入 |
+| 中间字幕 | 会话每 1.2s 对滚动缓冲做一次识别，`asr.partial` 推送 |
+| VAD | 服务端能量阈值 + 前端 always_on 静音 700ms 自动结束（保留 silero 接口） |
+| TTS | edge-tts 流式 MP3；情绪 cue 的 rate/pitch/volume 直接进入韵律参数 |
+| 句子级流式 | LLM 第一个句号就触发首句合成；下一句并发预取（队列最多 1 句） |
+| 下行播放 | `MediaSource('audio/mpeg')` 边收边播；不支持时退化为整段 decode |
+| 口型 | 真实 TTS 音频 → `AnalyserNode` → 振幅法口型（无需假音频） |
+| 半双工 | `IDLE→LISTENING→THINKING→SPEAKING→INTERRUPTED` 五态机；播放期间不收音 |
+| 打断 | 点击桌宠 / Esc：停播放、清队列、恢复收音；实测 **21.5ms** |
+| 音频情绪 | RMS + 语速 → 刺激 `magnitude_scale`（1.325，与低语相差 >20%） |
+
+![S4 语音对话：ASR 字幕 → 流式 TTS 播放（截图为假麦克风 + 真实 ASR/TTS 验收）](docs/images/s4-voice-chat.png)
+
+> 语音重依赖是可选安装：`pip install -e "mochi[voice]"`（或按 `pyproject.toml` 的 `voice` extra）。
+> 模型不入库；首次识别自动下载到 `data/models/`。开发默认 `tiny`，追求识别率可切 `small`。
+
+**已知偏差**：edge-tts 的 pitch 只接受 Hz，对外仍是百分比语义（内部转 `+NHz`）；短句（<2s）常来不及产生 partial 字幕；VAD 使用能量阈值而非 silero。
+
 ## 目录结构
 
 ```
@@ -165,6 +201,7 @@ mochi/
 │  ├─ gateway/            # WS 信封、鉴权、心跳、对话分发
 │  ├─ orchestration/      # Decision / Roleplay / Turn 注册表 / 双通道解析 / 表现映射 / 模型绑定校验
 │  ├─ emotion/            # PAD 引擎、16 标签、状态机、人格、刺激源、主动性、调试 API/CLI
+│  ├─ voice/              # ASR 会话、VAD、edge-tts、句子级流式与预取
 │  ├─ store/              # 情绪持久化（S6 扩展为 SQLite）
 │  ├─ providers/          # OpenAI 兼容 Provider（多模型分工、重试、用量）
 │  ├─ memory/             # 上下文预算、短期窗口
@@ -172,8 +209,9 @@ mochi/
 │  └─ utils/              # ULID、数学原语、时钟
 ├─ server/tests/          # 139 项测试（协议 / 解析器 / 编排 / 角色扮演 / 配置 / 情感 / 模型绑定）
 ├─ frontend/src/          # Vite + TS + pixi
+│  ├─ audio/              # 录音器、半双工五态机、流式音频播放
 │  ├─ live2d/             # 舞台 + 待机/视线/动作/表情/口型/交互控制器（零框架依赖）
-│  └─ ui/                 # Preact 面板：LLM 配置 / 衣柜 / S2 调试与自检
+│  └─ ui/                 # Preact 面板：LLM 配置 / 语音设备 / 情感与 S2 调试
 ├─ desktop/src-tauri/     # 透明置顶窗 + 窗口命令（window.rs）+ GNU 工具链配置
 ├─ characters/            # 角色卡 YAML（人格、口癖、禁忌、模型绑定）
 ├─ shared/schema/         # 契约 JSON Schema（由后端导出）
@@ -194,6 +232,7 @@ docs/wiki/                # 设计与实现 Wiki（架构、协议、Live2D 管�
 | LLM 服务 | 任意 OpenAI 兼容端点（LM Studio / Ollama / DeepSeek / OpenAI） | 必需 |
 | Live2D 模型 | Cubism 3/4，放本地 `mochi/data/live2d/`（不入库） | 必需 |
 | Cubism Core | `frontend/public/vendor/live2dcubismcore.min.js`（不入库） | 必需 |
+| 语音（S4） | `edge-tts` + `faster-whisper` + `numpy`（`pyproject.toml` 的 `voice` extra） | 可选 |
 | Rust | `cargo` + **`stable-x86_64-pc-windows-gnu`** 工具链（无需 MSVC） | 仅桌面壳 |
 | binutils | `dlltool` / `windres`（由 `scripts/setup_binutils.ps1` 准备） | 仅桌面壳 |
 | WebView2 Runtime | Win10/11 自带或单独安装 | 仅桌面壳 |
@@ -216,7 +255,8 @@ cd mochi
 # 任意一种 Python 3.11+ 环境；conda 与 venv 两种布局都被 scripts\py.ps1 支持
 conda create -p .venv python=3.12 -y        # 或：python -m venv .venv
 & scripts\py.ps1 -m pip install -r requirements.txt
-copy .env.example .env          # 填 LLM_BASE_URL / LLM_MODEL_CHAT / LLM_API_KEY
+& scripts\py.ps1 -m pip install -e ".[voice]"   # 语音链路（可选）
+copy .env.example .env          # 填 LLM_BASE_URL / LLM_MODEL_CHAT / LLM_API_KEY；VOICE_ENABLED=true
 & scripts\py.ps1 -m uvicorn --app-dir server app.main:create_app --factory --host 127.0.0.1 --port 8765
 ```
 
@@ -274,6 +314,7 @@ cd mochi
 & scripts\py.ps1 -m ruff check server scripts --config pyproject.toml
 & scripts\py.ps1 -m mypy server\app scripts --config-file pyproject.toml
 npm.cmd --prefix frontend run build                             # tsc --noEmit + vite build
+npm.cmd --prefix frontend test                                  # 半双工五态机（Node test）
 & scripts\py.ps1 scripts\export_schema.py                      # 改契约后重新导出
 node scripts\gen-types.mjs                                      # 再生成前端类型
 ```

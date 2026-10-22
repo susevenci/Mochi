@@ -1,0 +1,13 @@
+{
+  "before": {
+    "voice": "speaking",
+    "playing": true,
+    "t": 8851.79999999702
+  },
+  "after": {
+    "voice": "idle",
+    "playing": false,
+    "t": 8873.29999999702
+  },
+  "interrupt_ms": 21.5
+}

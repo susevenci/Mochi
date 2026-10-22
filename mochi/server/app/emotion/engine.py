@@ -722,19 +722,31 @@ class EmotionEngine:
             log.warning("情绪状态落盘失败: %s", exc)
 
     # ── 业务入口 ─────────────────────────────────────────────────────────
-    async def apply_text(self, text: str) -> EmotionSnapshot:
-        """用户文本 → 刺激（Level 1 词典；未命中时不产生刺激）。"""
+    async def apply_text(
+        self,
+        text: str,
+        *,
+        magnitude_scale: float = 1.0,
+    ) -> EmotionSnapshot:
+        """用户文本 → 刺激（Level 1）；``magnitude_scale`` 由语音特征给出。"""
         analysis = analyze_text(text)
         self.last_text_analysis = analysis
         if not analysis.hit:
             return self.snapshot()
         self._last_text_polarity = sum(item.dval for item in analysis.stimuli)
         for stimulus in analysis.stimuli:
-            await self.apply_stimulus(stimulus)
+            await self.apply_stimulus(
+                replace(stimulus, magnitude=stimulus.magnitude * max(0.1, magnitude_scale))
+            )
         return self.snapshot()
 
     async def apply_text_llm(
-        self, text: str, provider: Any, *, timeout: float = 2.0
+        self,
+        text: str,
+        provider: Any,
+        *,
+        timeout: float = 2.0,
+        magnitude_scale: float = 1.0,
     ) -> EmotionSnapshot:
         """Level 2：词典未命中且文本较长时，用轻量 LLM 补标注。"""
         if provider is None or self.last_text_analysis is None:
@@ -754,7 +766,9 @@ class EmotionEngine:
             return self.snapshot()
         self._last_text_polarity = sum(item.dval for item in analysis.stimuli)
         for stimulus in analysis.stimuli:
-            await self.apply_stimulus(stimulus)
+            await self.apply_stimulus(
+                replace(stimulus, magnitude=stimulus.magnitude * max(0.1, magnitude_scale))
+            )
         return self.snapshot()
 
     async def apply_interaction(

@@ -1,4 +1,6 @@
 import { Application } from 'pixi.js';
+import { HalfDuplex } from './audio/HalfDuplex';
+import { Recorder } from './audio/Recorder';
 import { resolveConfig } from './config';
 import { AudioPlayer } from './live2d/AudioPlayer';
 import { CueDispatcher, type CueInput } from './live2d/CueDispatcher';
@@ -27,9 +29,21 @@ const logEl = document.querySelector<HTMLDivElement>('#chat-log');
 const formEl = document.querySelector<HTMLFormElement>('#chat-form');
 const inputEl = document.querySelector<HTMLInputElement>('#chat-input');
 const sendEl = document.querySelector<HTMLButtonElement>('#chat-send');
+const micEl = document.querySelector<HTMLButtonElement>('#mic-button');
+const captionEl = document.querySelector<HTMLDivElement>('#asr-caption');
 const fallbackEl = document.querySelector<HTMLImageElement>('#fallback-portrait');
 
-if (!stageEl || !statusEl || !logEl || !formEl || !inputEl || !sendEl || !fallbackEl) {
+if (
+  !stageEl ||
+  !statusEl ||
+  !logEl ||
+  !formEl ||
+  !inputEl ||
+  !sendEl ||
+  !micEl ||
+  !captionEl ||
+  !fallbackEl
+) {
   throw new Error('missing required DOM nodes');
 }
 
@@ -40,6 +54,8 @@ const dom = {
   form: formEl,
   input: inputEl,
   send: sendEl,
+  mic: micEl,
+  caption: captionEl,
   fallback: fallbackEl,
 };
 
@@ -220,6 +236,10 @@ const interaction = new InteractionHandler({
   shell,
   onTap: (area) => {
     dom.input.focus();
+    if (voice.isSpeaking || audio.isPlaying) {
+      // 点击桌宠 = 打断当前语音（S4 验收：0.3s 内静音）
+      interruptSpeech();
+    }
     if (!live2d.isReady) return;
     motion.request(TAP_MOTIONS[area], 'high');
   },
@@ -350,6 +370,192 @@ client.on('sys.error', (envelope: Envelope) => {
   console.warn('[mochi] server error', envelope.payload);
 });
 
+// ── 语音会话：五态机 + 录音 + 流式播放（S4）──
+const voice = new HalfDuplex();
+const isAlwaysOn = () => localStorage.getItem('mochi.voiceMode') === 'always_on';
+let listening = false;
+let finishing = false;
+let audioChunks = 0;
+
+function showCaption(text: string): void {
+  dom.caption.hidden = false;
+  dom.caption.textContent = text;
+}
+
+function hideCaption(): void {
+  dom.caption.hidden = true;
+  dom.caption.textContent = '';
+}
+
+const recorder = new Recorder({
+  mode: isAlwaysOn() ? 'always_on' : 'push_to_talk',
+  onChunk: (data, seq) => {
+    client.send('audio.in_chunk', { data, seq });
+  },
+  onLevel: (level) => {
+    dom.mic.dataset.level = level.toFixed(3);
+  },
+  onAutoStop: () => {
+    void finishListening();
+  },
+  onError: (message) => {
+    showCaption(`麦克风不可用：${message}`);
+    listening = false;
+    voice.transition('idle', 'mic error');
+  },
+});
+
+voice.subscribe((state) => {
+  dom.mic.dataset.state = state;
+  dom.mic.title =
+    state === 'speaking'
+      ? '正在说话（点击打断）'
+      : state === 'listening'
+        ? '正在听…（松开识别）'
+        : state === 'thinking'
+          ? '识别/思考中…'
+          : isAlwaysOn()
+            ? '点击开始说话（静音自动结束）'
+            : '按住说话（松开识别）';
+});
+
+audio.onEnded = () => {
+  if (voice.state === 'speaking' || voice.state === 'thinking') {
+    voice.transition('speaking', 'playback ended');
+    voice.transition('interrupted', 'playback ended');
+    voice.transition('idle', 'playback ended');
+  }
+};
+
+async function startListening(): Promise<void> {
+  if (voice.isSpeaking) {
+    interruptSpeech();
+  }
+  if (!voice.canStartListening || !client.isOpen) {
+    if (!client.isOpen) showCaption('还没连上后端…');
+    return;
+  }
+  try {
+    await recorder.start();
+    listening = true;
+    finishing = false;
+    audioChunks = 0;
+    client.send('audio.in_begin', {
+      sample_rate: recorder.sampleRate,
+      format: 'pcm16',
+      mode: isAlwaysOn() ? 'always_on' : 'push_to_talk',
+    });
+    voice.transition('listening', 'mic down');
+    showCaption('🎙 正在听…');
+  } catch (error) {
+    console.warn('[voice] start failed', error);
+    listening = false;
+    voice.transition('idle', 'start failed');
+  }
+}
+
+async function finishListening(): Promise<void> {
+  if (!listening || finishing) return;
+  finishing = true;
+  listening = false;
+  await recorder.stop();
+  client.send('audio.in_end', { reason: 'user' });
+  voice.transition('thinking', 'mic up');
+  showCaption('识别中…');
+  finishing = false;
+}
+
+function interruptSpeech(): void {
+  if (currentTurn) {
+    client.send('chat.interrupt', { reason: 'user' }, currentTurn);
+  }
+  audio.stop();
+  hideCaption();
+  if (voice.isSpeaking) {
+    voice.transition('interrupted', 'user interrupt');
+  }
+  voice.transition('idle', 'user interrupt');
+}
+
+dom.mic.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (isAlwaysOn()) {
+    if (voice.isSpeaking) {
+      interruptSpeech();
+      return;
+    }
+    if (!listening) void startListening();
+    return;
+  }
+  void startListening();
+});
+
+dom.mic.addEventListener('pointerup', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!isAlwaysOn()) void finishListening();
+});
+
+dom.mic.addEventListener('pointercancel', () => {
+  if (!isAlwaysOn()) void finishListening();
+});
+
+client.on('asr.partial', (envelope: Envelope) => {
+  const payload = envelope.payload as { text?: string };
+  if (!payload.text) return;
+  showCaption(`🎙 ${payload.text}`);
+});
+
+client.on('asr.final', (envelope: Envelope) => {
+  const payload = envelope.payload as {
+    text?: string;
+    features?: Record<string, number>;
+  };
+  hideCaption();
+  if (!payload.text) {
+    voice.transition('idle', 'empty asr');
+    return;
+  }
+  console.info('[voice] asr final', payload.text, payload.features);
+  appendBubble('user', payload.text);
+  currentTurn = envelope.turn_id ?? ulid();
+  currentBubble = appendBubble('assistant', '…');
+  currentBubble.classList.add('typing');
+  setBusy(true);
+  voice.transition('thinking', 'asr final');
+});
+
+client.on('asr.error', (envelope: Envelope) => {
+  const payload = envelope.payload as { code?: string; detail?: string };
+  console.warn('[voice] asr error', payload);
+  showCaption(`语音识别失败：${payload.code ?? 'ASR_ERROR'}${payload.detail ? ` ${payload.detail}` : ''}`);
+  voice.transition('idle', 'asr error');
+});
+
+client.on('audio.out_begin', () => {
+  audioChunks = 0;
+  audio.startStream();
+  voice.transition('speaking', 'tts begin');
+});
+
+client.on('audio.out_chunk', (envelope: Envelope) => {
+  const payload = envelope.payload as { data?: string };
+  if (!payload.data) return;
+  audio.pushAudioChunk(payload.data);
+  audioChunks += 1;
+});
+
+client.on('audio.out_end', () => {
+  audio.endStream();
+});
+
+client.on('audio.stop', () => {
+  audio.stop();
+  if (voice.isSpeaking) voice.transition('interrupted', 'audio stop');
+  voice.transition('idle', 'audio stop');
+});
+
 // ── 表现指令（S2）：情绪 → 动作/表情/待机节奏 ──
 client.on('performance.cue', (envelope: Envelope) => {
   const cue = envelope.payload as CueInput;
@@ -433,8 +639,8 @@ dom.form.addEventListener('submit', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && currentTurn) {
-    client.send('chat.interrupt', { reason: 'user' }, currentTurn);
+  if (event.key === 'Escape' && (currentTurn || voice.isSpeaking)) {
+    interruptSpeech();
   }
 });
 
@@ -551,4 +757,6 @@ debugBtn?.addEventListener('click', (event) => {
   interaction,
   presenter: cues,
   switchModel,
+  voice,
+  recorder,
 };

@@ -14,8 +14,20 @@ export class AudioPlayer {
   private analyserNode: AnalyserNode | null = null;
   private gainNode: GainNode | null = null;
   private source: AudioBufferSourceNode | null = null;
+  private sources = new Set<AudioBufferSourceNode>();
+  private nextStartAt = 0;
   private playing = false;
   private volume = DEFAULT_VOLUME;
+  private streamElement: HTMLAudioElement | null = null;
+  private mediaSource: MediaSource | null = null;
+  private sourceBuffer: SourceBuffer | null = null;
+  private streamQueue: ArrayBuffer[] = [];
+  private streamUrl: string | null = null;
+  private streamEnded = false;
+  private bufferedFallback: Uint8Array[] = [];
+
+  /** 播放结束（含流式队列播完）时回调；半双工状态机用它回到 IDLE。 */
+  onEnded: (() => void) | null = null;
 
   get analyser(): AnalyserNode | null {
     return this.analyserNode;
@@ -78,21 +90,137 @@ export class AudioPlayer {
   }
 
   playBuffer(buffer: AudioBuffer): void {
+    this.stop();
+    this.enqueueBuffer(buffer, true);
+  }
+
+  /** 无缝排队播放（TTS 分句/分段）：按上一段结束时间安排 start(when)。 */
+  enqueueBuffer(buffer: AudioBuffer, fromZero = false): void {
     const context = this.ensureContext();
     if (!context || !this.analyserNode) return;
-    this.stop();
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(this.analyserNode);
-    source.onended = () => {
-      if (this.source === source) {
-        this.playing = false;
-        this.source = null;
-      }
-    };
+    const startAt = fromZero
+      ? context.currentTime + 0.02
+      : Math.max(context.currentTime + 0.02, this.nextStartAt);
+    this.nextStartAt = startAt + buffer.duration;
+    this.sources.add(source);
     this.source = source;
     this.playing = true;
-    source.start();
+    source.onended = () => {
+      this.sources.delete(source);
+      if (this.source === source) {
+        this.source = null;
+      }
+      if (this.sources.size === 0 && !this.streamElement) {
+        this.playing = false;
+        this.onEnded?.();
+      }
+    };
+    source.start(startAt);
+  }
+
+  /**
+   * 流式 MP3：MediaSource 追加 chunk，边收边播。
+   * 若环境不支持 MediaSource，则退化为"收完再 decode"。
+   */
+  startStream(): void {
+    const context = this.ensureContext();
+    if (!context || !this.analyserNode) return;
+    this.stop();
+    this.bufferedFallback = [];
+    this.streamQueue = [];
+    this.streamEnded = false;
+    if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported('audio/mpeg')) {
+      console.warn('[audio] MediaSource 不支持，降级为整段解码');
+      return;
+    }
+    const element = new Audio();
+    element.preload = 'auto';
+    const mediaSource = new MediaSource();
+    const url = URL.createObjectURL(mediaSource);
+    element.src = url;
+    const node = context.createMediaElementSource(element);
+    node.connect(this.analyserNode);
+    mediaSource.addEventListener('sourceopen', () => {
+      try {
+        this.sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+        this.sourceBuffer.addEventListener('updateend', () => this.flushStreamQueue());
+        this.flushStreamQueue();
+      } catch (error) {
+        console.warn('[audio] addSourceBuffer 失败:', error);
+      }
+    });
+    this.streamElement = element;
+    this.mediaSource = mediaSource;
+    this.streamUrl = url;
+    this.playing = true;
+    element.onended = () => {
+      this.playing = false;
+      this.cleanupStream();
+      this.onEnded?.();
+    };
+    void element.play().catch((error) => console.warn('[audio] stream play failed:', error));
+  }
+
+  pushAudioChunk(base64: string): void {
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    if (!this.streamElement) {
+      // 降级路径：先累积，endStream 时整段 decode
+      this.bufferedFallback.push(bytes);
+      return;
+    }
+    this.streamQueue.push(bytes.buffer as ArrayBuffer);
+    this.flushStreamQueue();
+  }
+
+  private flushStreamQueue(): void {
+    if (!this.sourceBuffer || this.sourceBuffer.updating || !this.mediaSource) return;
+    const next = this.streamQueue.shift();
+    if (next) {
+      try {
+        this.sourceBuffer.appendBuffer(next);
+      } catch (error) {
+        console.warn('[audio] appendBuffer 失败:', error);
+      }
+      return;
+    }
+    if (this.streamEnded && this.mediaSource.readyState === 'open') {
+      try {
+        this.mediaSource.endOfStream();
+      } catch (error) {
+        console.warn('[audio] endOfStream 失败:', error);
+      }
+    }
+  }
+
+  endStream(): void {
+    this.streamEnded = true;
+    if (!this.streamElement) {
+      void this.playBufferedFallback();
+      return;
+    }
+    this.flushStreamQueue();
+  }
+
+  private async playBufferedFallback(): Promise<void> {
+    const context = this.ensureContext();
+    if (!context || this.bufferedFallback.length === 0) return;
+    const total = this.bufferedFallback.reduce((sum, item) => sum + item.byteLength, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const item of this.bufferedFallback) {
+      merged.set(item, offset);
+      offset += item.byteLength;
+    }
+    this.bufferedFallback = [];
+    try {
+      const buffer = await context.decodeAudioData(merged.buffer);
+      this.enqueueBuffer(buffer, true);
+    } catch (error) {
+      console.warn('[audio] fallback decode failed:', error);
+    }
   }
 
   /** 固定测试音频：合成的 14 个音节，用来观察"嘴部开合与音量相关" */
@@ -103,16 +231,47 @@ export class AudioPlayer {
   }
 
   stop(): void {
-    if (this.source) {
+    for (const source of this.sources) {
       try {
-        this.source.stop();
+        source.stop();
       } catch {
         // 停止未启动的音源会抛 InvalidStateError，忽略即可
       }
-      this.source.disconnect();
-      this.source = null;
+      source.disconnect();
+    }
+    this.sources.clear();
+    this.source = null;
+    this.nextStartAt = 0;
+    if (this.streamElement) {
+      try {
+        this.streamElement.pause();
+        this.streamElement.src = '';
+      } catch {
+        // 忽略已销毁的 audio 元素
+      }
+    }
+    this.streamElement = null;
+    this.mediaSource = null;
+    this.sourceBuffer = null;
+    this.streamQueue = [];
+    this.bufferedFallback = [];
+    this.streamEnded = false;
+    if (this.streamUrl) {
+      URL.revokeObjectURL(this.streamUrl);
+      this.streamUrl = null;
     }
     this.playing = false;
+  }
+
+  private cleanupStream(): void {
+    if (this.streamUrl) {
+      URL.revokeObjectURL(this.streamUrl);
+      this.streamUrl = null;
+    }
+    this.mediaSource = null;
+    this.sourceBuffer = null;
+    this.streamQueue = [];
+    this.streamElement = null;
   }
 
   /**
