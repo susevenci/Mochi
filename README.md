@@ -281,7 +281,12 @@ npm.cmd --prefix desktop run tauri -- build --no-bundle
 
 ## 打磨与分发（S7）
 
-**版本：v1.0.0** · Windows NSIS 安装包：`Mochi_1.0.0_x64-setup.exe`（113MB，sidecar onefile 108MB）。
+**版本：v1.0.0** · Windows NSIS 安装包：`release/Mochi_1.0.0_x64-setup.exe`（113MB，sidecar onefile 108MB；Git LFS 管理）。
+
+```powershell
+# 克隆后拉取 LFS 安装包
+git lfs pull
+```
 
 | 能力 | 实现 / 实测 |
 | --- | --- |

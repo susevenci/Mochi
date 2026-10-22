@@ -5,7 +5,8 @@ S7 打磨、打包与发布验收证据
 环境: Windows 10 / Tauri 2.12 GNU / NSIS 3.13 / Python 3.12
 
 一、发布物
-- NSIS: mochi/desktop/src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Mochi_1.0.0_x64-setup.exe
+- NSIS（入库，Git LFS）: release/Mochi_1.0.0_x64-setup.exe
+- 原始构建路径: mochi/desktop/src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Mochi_1.0.0_x64-setup.exe
 - 大小: 112.41 MiB (113M)
 - SHA256: eb5fba6ec33052a05051bba297d447b26c1652fa9746bf77d088cbf62b910e46
 - 安装目录: 131M（mochi.exe + binaries/mochi-server.exe + WebView2Loader）
