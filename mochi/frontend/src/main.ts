@@ -17,6 +17,7 @@ import { detectShell } from './shell/detect';
 import type { Envelope } from './types/protocol';
 import { mountConfirm, type ConfirmRequest } from './ui/ConfirmDialog';
 import { mountDevPanel } from './ui/DevPanel';
+import { mountOobe } from './ui/Oobe';
 import {
   ingestEmotion,
   loadEmotionHistory,
@@ -34,6 +35,7 @@ const micEl = document.querySelector<HTMLButtonElement>('#mic-button');
 const captionEl = document.querySelector<HTMLDivElement>('#asr-caption');
 const fallbackEl = document.querySelector<HTMLImageElement>('#fallback-portrait');
 const confirmRoot = document.querySelector<HTMLDivElement>('#confirm-root');
+const oobeRoot = document.querySelector<HTMLDivElement>('#oobe-root');
 
 if (
   !stageEl ||
@@ -45,7 +47,8 @@ if (
   !micEl ||
   !captionEl ||
   !fallbackEl ||
-  !confirmRoot
+  !confirmRoot ||
+  !oobeRoot
 ) {
   throw new Error('missing required DOM nodes');
 }
@@ -339,6 +342,7 @@ client.on('sys.hello_ack', (envelope: Envelope) => {
   console.info('[mochi] backend ready', payload);
   dom.status.textContent = `ready v${String(payload.server_version ?? '?')}`;
   bootOnce();
+  void maybeShowOobe();
   if (payload.emotion) {
     ingestEmotion(payload.emotion);
     dom.fallback.dataset.emotion = payload.emotion.label ?? 'neutral';
@@ -621,6 +625,25 @@ async function showPendingGreeting(): Promise<void> {
     bubble.appendChild(tag);
   } catch (error) {
     console.warn('[emotion] greeting consume failed', error);
+  }
+}
+
+let oobeShown = false;
+
+async function maybeShowOobe(): Promise<void> {
+  if (oobeShown || !oobeRoot) return;
+  try {
+    const response = await fetch(`${config.apiBase}/api/v1/sys/info`, { headers: apiHeaders });
+    if (!response.ok) return;
+    const info = (await response.json()) as { llm_configured?: boolean };
+    if (info.llm_configured) return;
+    oobeShown = true;
+    mountOobe(oobeRoot, () => {
+      oobeShown = true;
+      dom.input.focus();
+    });
+  } catch (error) {
+    console.warn('[oobe] check failed', error);
   }
 }
 

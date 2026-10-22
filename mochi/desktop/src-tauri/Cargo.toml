@@ -1,6 +1,6 @@
 [package]
 name = "mochi"
-version = "0.3.0"
+version = "1.0.0"
 description = "Mochi desktop companion shell"
 edition = "2021"
 rust-version = "1.77"

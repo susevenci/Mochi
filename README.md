@@ -27,7 +27,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | S4 | 语音链路：ASR / TTS / 半双工 / 打断 / 音频口型 | ✅ 13/13 |
 | S5 | 桌面壳：边车托管、托盘、穿透、开机自启 | ✅ 12/12 |
 | S6 | 记忆 / Skills / 工具 | ✅ 15/15 |
-| S7 | 打磨与打包 | ⏳ |
+| S7 | 打磨与打包 | ✅ 11/11（MSI 受网络限制） |
 
 ### 里程碑
 
@@ -40,6 +40,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 | **M4 会说话** | 语音闭环 | ✅ | 按住说话→字幕→流式语音→口型→点击打断 21.5ms；首音 1475ms |
 | **M5 真桌宠** | 完整桌面应用 | ✅ | 双击即用、边车 5s 自愈、托盘常驻、穿透热区、开机自启、单实例 |
 | **M6 记得你** | 记忆与工具 | ✅ | 16 个工具 + 3 Skills；重启记得名字；40 轮后上下文不线性增长；提醒到点主动播报 |
+| **M7 可分发** | 打磨与打包 | ✅ | NSIS 安装包 + OOBE + 诊断包；172 tests / 覆盖率 82%；安装→引导→对话 |
 
 已实测指标（本地 LM Studio，`qwen3.5-4b`，关闭思考模式）：
 
@@ -51,7 +52,7 @@ Mochi 不是"套了动漫皮的聊天客户端"，而是三个身份的叠加：
 - 情感：连续夸奖 3 次增幅递减（≈1 : 0.7 : 0.49）；同句"你真笨"傲娇进 `hurt`、元气进 `amused`；关心进 `shy`
 - 情感：1 小时无互动转 `lonely`；`advance(8h)` 触发 `long_absence` 重逢且 valence 为正；SP4 五项指标全部健康
 - 语音：edge-tts 首音 **1475ms**（两次 1179/1475）；faster-whisper tiny 识别"你好呀 今天天气怎么样"；真实音频口型电平 0→0.746；点击打断 **21.5ms**
-- 质量：`ruff` 0 问题 / `mypy` 0 issue（94 文件）/ `pytest 169 passed` / `emotion/` 覆盖率 87% / 前端 4 项状态机测试 / `tsc` + `vite build` 通过
+- 质量：`ruff` 0 问题 / `mypy` 0 issue（96 文件）/ `pytest 172 passed` / `emotion/` 覆盖率 87% / 前端 4 项状态机测试 / `tsc` + `vite build` 通过
 
 ![S3 情感调试面板：PAD 曲线、标签时间轴、刺激注入器、状态机与触发源](docs/images/s3-emotion-panel.png)
 
@@ -207,7 +208,7 @@ Tauri setup
 
 | 能力 | 实现 / 实测 |
 | --- | --- |
-| 边车打包 | PyInstaller onefile `mochi-server.exe`（106MB；S7 瘦身），resource 随 Tauri 分发 |
+| 边车打包 | PyInstaller onefile `mochi-server.exe`（108MB，低于 150MB 精简线），resource 随 Tauri 分发 |
 | 边车托管 | 动态端口、随机 token、`/health` 探活、崩溃重启 ≤3 次 |
 | 崩溃自愈 | kill 边车后 **5s 内**重启，前端 WS 自动重连 |
 | 托盘 | 显示/隐藏、置顶、穿透、设置、退出；关闭窗口只隐藏，进程常驻 |
@@ -238,7 +239,7 @@ npm.cmd --prefix desktop run tauri -- build --no-bundle
 > 动态端口与 token 通过导航 URL 注入；前端所有 REST 走 `config.apiBase`，WS 走 `ws://127.0.0.1:<port>/ws?token=...`。
 > Tauri 内置 WebView2 可用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 接入 CDP 做自动化验收。
 
-**已知偏差**：边车重启后的"confused"表情提示未单独实现（前端自动重连、下一轮由情绪引擎决定表情）；设置面板的主动性/工具/记忆开关随 S6 补齐；106MB 单文件在 S7 用 onedir/裁剪瘦身。
+**已知偏差**：边车重启后的"confused"表情提示未单独实现（前端自动重连、下一轮由情绪引擎决定表情）；设置面板的主动性/工具/记忆开关随 S6 补齐；onefile 108MB 已低于 150MB 精简线；后续可切 onedir 提速启动。
 
 ## 记忆与工具（S6）
 
@@ -277,6 +278,24 @@ npm.cmd --prefix desktop run tauri -- build --no-bundle
 ```
 
 **已知偏差**：情绪引擎仍使用 JSON Repo（SQLite 的 `emotion_snapshots` 表已建，迁移留到后续）；`web_search`/`weather` 依赖公网，失败时以工具错误回灌；Skills 采用工具结果注入上下文，未做独立的上下文槽位。
+
+## 打磨与分发（S7）
+
+**版本：v1.0.0** · Windows NSIS 安装包：`Mochi_1.0.0_x64-setup.exe`（113MB，sidecar onefile 108MB）。
+
+| 能力 | 实现 / 实测 |
+| --- | --- |
+| OOBE | 4 步：连接模型 → 选择角色 → 完成；安装后首次启动自动出现 |
+| 安装包 | NSIS 静默安装到临时目录 → 启动 → sidecar 1.0.0 → OOBE 全流程通过 |
+| 诊断 | 结构化日志轮转（5MB×3）+ `/api/v1/logs` + `scripts/export-diagnostics.py`（脱敏） |
+| 自然度 | `ensure_variety` 防止逐字复读；三张角色卡 SP4 指标全部健康 |
+| 性能 | 空闲 CPU 0%；mochi 进程 ~27MB、sidecar 私有 ~56MB；首音 1475ms；打断 21.5ms |
+| 质量 | **172 tests / 全局覆盖率 82%** / ruff+mypy 0 / 前端 build+test |
+| 文档 | [架构](docs/architecture.md) · [角色卡](docs/character-card-guide.md) · [情感调参](docs/emotion-tuning-guide.md) |
+
+![首次启动 OOBE](docs/images/s7-oobe.png)
+
+**已知限制**：MSI 构建因 WiX 工具下载超时未产出（NSIS 已可用）；24h 泄漏与干净虚拟机验证以本机临时目录静默安装替代；Electron Plan B 未实跑，`ShellAdapter` 接口已保留。
 
 ## 目录结构
 

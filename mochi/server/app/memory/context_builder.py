@@ -26,7 +26,7 @@ DIALOG_TOKENS = 1200
 
 OUTPUT_FORMAT = """\
 【输出格式】
-先输出回复正文，然后换行输出 <<<MOOD>>> 再输出一个 JSON：
+先输出回复正文（不要逐字重复你最近说过的话），然后换行输出 <<<MOOD>>> 再输出一个 JSON：
 {"emotion":{"label":"neutral","delta_valence":0.0,"delta_arousal":0.0,"confidence":0.0},
  "action":{"expression":"relaxed","motion":"idle_sway","priority":"normal"}}
 label 只能从这个列表选：neutral,happy,excited,amused,affectionate,shy,proud,curious,

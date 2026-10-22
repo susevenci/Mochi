@@ -11,6 +11,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from app.config.character_card import CharacterCard
 from app.emotion.engine import EmotionEngine
 
 from .commands import CommandRouter
@@ -58,6 +59,12 @@ class Orchestrator:
 
     def set_route_mode(self, mode: str) -> None:
         self._route_mode = mode
+
+    def select_character(self, card_id: str) -> CharacterCard:
+        card = self._commands.select_card(card_id)
+        if self._emotion is not None:
+            self._emotion.set_card(card)
+        return card
 
     @property
     def route_mode(self) -> str:

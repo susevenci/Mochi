@@ -915,3 +915,126 @@ body {
   font-size: 10px;
   cursor: pointer;
 }
+
+
+/* ── S7 首次引导（OOBE）── */
+.oobe-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(18 22 30 / 38%);
+}
+
+.oobe-panel {
+  width: min(420px, calc(100% - 28px));
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 28%);
+  color: #1f2430;
+  font-size: 13px;
+}
+
+.oobe-panel header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.oobe-panel h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.oobe-panel h3 {
+  margin: 4px 0 12px;
+  font-size: 14px;
+}
+
+.oobe-step {
+  color: #9aa4b2;
+  font-size: 11px;
+}
+
+.oobe-panel label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.oobe-panel label > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #4b5563;
+  font-size: 11px;
+}
+
+.oobe-panel input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: 7px;
+  font-size: 13px;
+  outline: none;
+}
+
+.oobe-hint {
+  color: #8b93a1;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.oobe-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.oobe-panel button {
+  padding: 8px 12px;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 7px;
+  background: #f3f4f8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.oobe-panel button.primary {
+  flex: 1;
+  border-color: transparent;
+  background: #688cff;
+  color: #fff;
+}
+
+.oobe-panel button.link {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: #8b93a1;
+}
+
+.oobe-characters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.oobe-character {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px !important;
+  text-align: left;
+}
+
+.oobe-character.active {
+  border-color: #688cff !important;
+  background: #eef2ff !important;
+}
+
+.oobe-character small {
+  color: #9aa4b2;
+  font-size: 10px;
+}

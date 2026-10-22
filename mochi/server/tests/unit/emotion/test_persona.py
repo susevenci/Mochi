@@ -85,5 +85,5 @@ def test_forbidden_label_and_unlock_rule() -> None:
 def test_baseline_and_tau() -> None:
     persona = CardLoader(CHARACTERS_DIR, "genki").current.persona
     assert baseline_mood(persona).valence > 0
-    assert effective_tau(persona, 300.0) < 300.0
+    assert effective_tau(persona, 300.0) > 300.0  # 元气卡情绪停留更久
     assert effective_tau(Persona(decay_multiplier=2.0), 300.0) == 600.0

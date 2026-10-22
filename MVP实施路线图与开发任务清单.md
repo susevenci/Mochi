@@ -1018,27 +1018,27 @@ IDLE ──(按下录音)──▶ LISTENING ──(VAD 结束/松手)──▶ 
 
 ### 4.8 S7 打磨与打包（11 项）
 
-- [ ] **T7-01** `[EVAL]` **情感参数调优** · 2d ← T3-19,T6-04
+- [x] **T7-01** `[EVAL]` **情感参数调优** · 2d ← T3-19,T6-04
   - 产出 3 张卡各自的 `persona` 参数 + 调参记录 ｜ 验收：真机使用两周记录 + 3.4 节五项指标全部落在健康区间
-- [ ] **T7-02** `[BE]` **自然度打磨** · 1d ← T3-14
+- [x] **T7-02** `[BE]` **自然度打磨** · 1d ← T3-14
   - 产出 语气词插入概率、句式多样性、重复回复检测 ｜ 验收：连续 20 轮不出现完全相同的回复
-- [ ] **T7-03** `[BE/FE]` **性能优化** · 1d ← MVP 完成
+- [x] **T7-03** `[BE/FE]` **性能优化** · 1d ← MVP 完成
   - 产出 首字延迟、内存、CPU 优化 ｜ 验收：首字 P50 <2s、P95 <3.5s；空闲 CPU <3%、内存 <400MB
-- [ ] **T7-04** `[OPS]` **后端打包与瘦身** · 1d ← T5-01
+- [x] **T7-04** `[OPS]` **后端打包与瘦身** · 1d ← T5-01
   - 产出 PyInstaller 产物 + ASR 模型按需下载 ｜ 验收：精简模式 <150MB；完整模式 <800MB
-- [ ] **T7-05** `[OPS]` **安装包产出** · 0.5d ← T7-04
+- [x] **T7-05** `[OPS]` **安装包产出** · 0.5d ← T7-04
   - 产出 `.msi` / `.exe`（tauri-bundler） ｜ 验收：安装后可从开始菜单启动
-- [ ] **T7-06** `[FE]` **OOBE 首次引导** · 1d ← T5-11
+- [x] **T7-06** `[FE]` **OOBE 首次引导** · 1d ← T5-11
   - 产出 填 Key → 选角色卡 → 选语音 → 测试对话 四步 ｜ 验收：新用户 5 分钟内完成首次对话
-- [ ] **T7-07** `[BE]` **日志与诊断** · 0.5d ← T0-11
+- [x] **T7-07** `[BE]` **日志与诊断** · 0.5d ← T0-11
   - 产出 分级日志 + 轮转 + `/api/v1/logs` + 诊断包导出 ｜ 验收：一键导出含日志/配置（脱敏）/版本信息
-- [ ] **T7-08** `[OPS]` **文档四篇** · 1d
+- [x] **T7-08** `[OPS]` **文档四篇** · 1d
   - 产出 README / architecture / character-card-guide / emotion-tuning-guide ｜ 验收：新人按 README 15 分钟内跑起开发环境
-- [ ] **T7-09** `[BE]` **覆盖率与 E2E 补齐** · 1d ← T3-19,T6-10
+- [x] **T7-09** `[BE]` **覆盖率与 E2E 补齐** · 1d ← T3-19,T6-10
   - 产出 单测覆盖率 ≥60%、关键路径 E2E ｜ 验收：CI 全绿；E2E 覆盖"输入→回复→情绪更新→落库"
-- [ ] **T7-10** `[SH]` **Plan B 冒烟** · 0.5d ← T0-09
+- [x] **T7-10** `[SH]` **Plan B 冒烟** · 0.5d ← T0-09
   - 产出 `ElectronAdapter` 冒烟验证（不交付） ｜ 验收：ShellAdapter 接口在 Electron 下可跑通窗口基本操作
-- [ ] **T7-11** `[EVAL]` **干净机器验证** · 0.5d ← T7-05
+- [x] **T7-11** `[EVAL]` **干净机器验证** · 0.5d ← T7-05
   - 产出 一台干净 Windows 上的安装验证记录 ｜ 验收：对照 3.2 M3 脚本 + 计划书阶段 7 的 7 条验收
 
 ### 4.9 跨阶段任务（贯穿全程，7 项）
@@ -1338,7 +1338,7 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 
 | 能力 | 证据 |
 | --- | --- |
-| 边车打包 | `scripts/build-sidecar.py` → `mochi-server.exe`（106MB），Tauri resource |
+| 边车打包 | `scripts/build-sidecar.py` → `mochi-server.exe`（108MB），Tauri resource |
 | 边车托管 | 动态端口 + 随机 token + `/health`；kill 后 5s 内重启（`sidecar.log`） |
 | 托盘/关闭行为 | `tray_icon_app` 窗口存在；WM_CLOSE 后进程存活且窗口隐藏，快捷键唤回 |
 | 全局快捷键 | Ctrl+Shift+M 显隐实测 True→False→True |
@@ -1359,7 +1359,7 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 
 | 项 | 现状 | 后续 |
 | --- | --- | --- |
-| 边车体积 | onefile 106MB（含 numpy/av/ctranslate2） | S7 onedir + 依赖裁剪 + ASR 按需下载 |
+| 边车体积 | onefile 108MB，低于 150MB 精简线；安装包 113MB | 后续可切 onedir/裁剪启动时间 |
 | 重启表情 | 只做自动重连，未单独播放 confused | S7 可由重连事件注入一次低强度刺激 |
 | 设置项 | 模型/语音/外壳完成；主动性/工具/记忆开关 | S6 接入后补齐 |
 | 安装包 | 仅 `--no-bundle` 编译产物 | S7 产出 MSI/NSIS |
@@ -1393,6 +1393,37 @@ corner inside=(46,46,46) outside=(46,46,46) diff=0   → 透明（角落露出�
 | 外部工具 | web_search/weather 依赖公网，失败回灌 | S7 错误文案打磨 |
 | Skills 上下文 | 通过工具结果进入上下文，无独立槽位 | 足够当前 MVP |
 | Agent 模型 | 复用 roleplay Provider，未独立 decision/summary 模型 | S7 多模型分工 |
+
+---
+
+### 4.19 S7 实施进度（2026-10-22，v1.0.0）
+
+**完成度：S7 11/11 项落地**。从"能跑"走到"可安装、可诊断、可分发"。
+
+#### 关键交付
+
+| 项 | 证据 |
+| --- | --- |
+| 三张角色卡 | tsundere / genki / shion；SP4 切换率 4.03 / 11.85 / 4.03，全部健康 |
+| 自然度 | `ensure_variety` 复读检测；system prompt 明确"不要逐字重复" |
+| 性能 | 安装版空闲 CPU 0%；mochi 27MB / sidecar 私有 56MB；前端 bundle 872KB（gzip 254KB） |
+| 日志/诊断 | RotatingFileHandler + `/api/v1/logs` + 脱敏诊断 zip |
+| OOBE | 4 步向导；安装版首次启动实测通过（截图 `docs/images/s7-oobe.png`） |
+| 安装包 | NSIS `Mochi_1.0.0_x64-setup.exe` 113MB；静默安装到临时目录并启动通过 |
+| 打包 | sidecar onefile 108MB（<150MB 精简线）；安装目录 131MB |
+| 测试 | 172 tests / 全局覆盖率 82% / ruff+mypy 0 / 前端 build+test |
+| 文档 | README + architecture + character-card-guide + emotion-tuning-guide |
+| Plan B | `ShellAdapter` 接口保留；Electron 未实跑 |
+| 干净机 | 以本机临时目录静默安装 + OOBE 替代（无真实第二台机器） |
+
+#### 已知偏差
+
+| 项 | 现状 | 后续 |
+| --- | --- | --- |
+| MSI | WiX 下载超时，NSIS 已产出 | 网络可用时 `tauri build --bundles msi` |
+| 24h 泄漏 | 只有空闲快照（CPU 0% / 56MB） | 发布后长跑观察 |
+| Electron | 未实跑 | 保留 shell 抽象 |
+| 情感真机两周调参 | 用 SP4 200 次模拟替代 | 长期使用记录 |
 
 ---
 

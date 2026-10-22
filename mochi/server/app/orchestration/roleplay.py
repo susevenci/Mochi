@@ -24,6 +24,7 @@ from app.voice.tts.text_prep import SentenceSplitter
 
 from .events import CuePayload, EventSink, FinalPayload
 from .mood_parser import MoodStreamParser
+from .naturalness import ensure_variety
 from .performance import map_emotion
 from .turn_registry import Turn
 
@@ -163,8 +164,17 @@ class RoleplayService:
                 )
                 return
 
-            if result.text:
-                self._history.append(user_text, result.text)
+            final_text = result.text
+            if final_text:
+                recent_assistant = [answer for _, answer in self._history.recent()][-5:]
+                final_text = ensure_variety(
+                    final_text,
+                    recent_assistant,
+                    interjections=tuple(
+                        self._builder.card.persona.interjections.get("neutral", [])
+                    ),
+                )
+                self._history.append(user_text, final_text)
             if not result.parsed:
                 log.warning("roleplay mood json missing turn=%s note=%s", turn.id, result.note)
 
@@ -173,7 +183,7 @@ class RoleplayService:
                 turn.id,
                 first_token_ms,
                 latency_ms,
-                len(result.text),
+                len(final_text),
                 result.parsed,
             )
             # 表现指令来自 turn 开始时的冻结快照，LLM 建议只影响下一轮
@@ -216,7 +226,7 @@ class RoleplayService:
             await sink.final(
                 turn.id,
                 FinalPayload(
-                    text=result.text,
+                    text=final_text,
                     route="chat",
                     emotion=final_emotion,
                     action=result.action,

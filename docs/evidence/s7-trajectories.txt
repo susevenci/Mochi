@@ -1,0 +1,49 @@
+=== tsundere ===
+  "switch_rate_per_hour": 4.03,
+  "switch_rate_healthy": true,
+  "mean_dwell_seconds": 325.3,
+  "max_slope_per_second": 0.194,
+  "max_slope_healthy": true,
+  "repeat_ratio_median": 0.798,
+  "repeat_ratio_samples": 25,
+  "silent_activity_mean": 0.1155,
+  "silent_activity_healthy": true,
+  "labels_seen": [
+    "angry",
+    "neutral",
+    "worried"
+  ]
+}
+=== genki ===
+  "switch_rate_per_hour": 11.85,
+  "switch_rate_healthy": true,
+  "mean_dwell_seconds": 126.6,
+  "max_slope_per_second": 0.122,
+  "max_slope_healthy": true,
+  "repeat_ratio_median": 0.873,
+  "repeat_ratio_samples": 24,
+  "silent_activity_mean": 0.0123,
+  "silent_activity_healthy": true,
+  "labels_seen": [
+    "amused",
+    "curious",
+    "excited",
+    "neutral",
+    "worried"
+  ]
+=== shion ===
+  "switch_rate_per_hour": 4.03,
+  "switch_rate_healthy": true,
+  "mean_dwell_seconds": 325.4,
+  "max_slope_per_second": 0.11,
+  "max_slope_healthy": true,
+  "repeat_ratio_median": 0.917,
+  "repeat_ratio_samples": 26,
+  "silent_activity_mean": 0.0806,
+  "silent_activity_healthy": true,
+  "labels_seen": [
+    "hurt",
+    "neutral",
+    "worried"
+  ]
+}

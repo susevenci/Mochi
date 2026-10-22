@@ -27,18 +27,18 @@ persona:
   baseline_mood: {valence: 0.16, arousal: 0.42, dominance: 0.55}
   initial_pad: {valence: 0.16, arousal: 0.42, dominance: 0.55}
   reactivity:
-    praise: 1.15
+    praise: 1.0
     insult: 0.55
     intimate: 1.10
     care: 1.00
     tease: 1.25
     user_negative: 0.60
-    unexpected: 1.10
-    task_success: 1.15
+    unexpected: 0.95
+    task_success: 1.0
     task_fail: 0.70
     random: 0.90
-  decay_multiplier: 0.85
-  refractory_seconds: 6.0
+  decay_multiplier: 1.2
+  refractory_seconds: 10.0
   dominance_recovery: 0.006
   label_bias:
     amused: 0.22

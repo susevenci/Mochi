@@ -1,0 +1,45 @@
+S7 打磨、打包与发布验收证据
+==============================
+日期: 2026-10-22
+版本: v1.0.0
+环境: Windows 10 / Tauri 2.12 GNU / NSIS 3.13 / Python 3.12
+
+一、发布物
+- NSIS: mochi/desktop/src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Mochi_1.0.0_x64-setup.exe
+- 大小: 112.41 MiB (113M)
+- SHA256: eb5fba6ec33052a05051bba297d447b26c1652fa9746bf77d088cbf62b910e46
+- 安装目录: 131M（mochi.exe + binaries/mochi-server.exe + WebView2Loader）
+- sidecar: onefile 108.4M（低于 150MB 精简线）
+
+二、安装/首次启动（本机临时目录替代干净虚拟机）
+- 静默安装 /S /D=.tmp/mochi-install -> exit 0
+- 启动安装版 -> sidecar v1.0.0 -> SQLite FTS -> WS 连接
+- OOBE 4 步向导出现并可完成（连接模型 -> 角色 -> 完成）
+- 快捷键/托盘/边车由安装版正常加载
+- 截图: docs/images/s7-oobe.png / s7-oobe-llm.png / s7-oobe-character.png / s7-oobe-ready.png
+
+三、三张角色卡 SP4（200 次刺激，seed 42）
+- tsundere: 切换率 4.03/h，max_slope 0.194，静默活动 0.1155 -> 健康
+- genki: 切换率 11.85/h，max_slope 0.122，静默活动 0.0123 -> 健康
+- shion: 切换率 4.03/h，max_slope 0.110，静默活动 0.0806 -> 健康
+- 详见 docs/evidence/s7-trajectories.txt
+
+四、性能/质量
+- 安装版空闲 CPU: 0%（mochi / mochi-server 采样）
+- 内存: mochi 27MB；sidecar 私有 ~56MB、工作集 ~75MB
+- 前端 bundle: 872KB（gzip 254KB）
+- 已有指标: 首字 185–966ms（S1）；首音 1179–1475ms（S4）；打断 21.5ms；口型 0→0.746
+- 后端 tests: 172 passed；全局覆盖率: 82.37%（>=60%）；ruff 0；mypy 0（96 文件）
+- 前端 tsc + vite build + 4 项半双工 Node 测试通过
+
+五、诊断与文档
+- RotatingFileHandler（5MB×3）+ GET /api/v1/logs
+- scripts/export-diagnostics.py 生成脱敏 zip（无 API Key/token）
+- 文档: docs/architecture.md / character-card-guide.md / emotion-tuning-guide.md
+- README/路线图已更新至 v1.0.0
+
+六、已知限制
+- MSI 构建因 WiX 工具下载超时（tauri build 默认 bundles=all 时），NSIS 已产出并验证。
+- 24h 内存泄漏与真实干净虚拟机未执行；以临时目录静默安装 + 空闲采样替代。
+- Electron Plan B 未实跑；ShellAdapter 抽象保留。
+- 情感两周真机调参以 SP4 模拟替代。

@@ -93,6 +93,11 @@ class CommandRouter:
             return self._role(args)
         return CommandResult(f"不认识的命令：{command}，试试 /help")
 
+    def select_card(self, card_id: str) -> CharacterCard:
+        card = self._cards.load(card_id)
+        self._builder.set_card(card)
+        return card
+
     def _role(self, args: list[str]) -> CommandResult:
         if not args or args[0] == "list":
             ids = self._cards.list_ids()

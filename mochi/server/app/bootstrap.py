@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from .config.character_card import CardLoader
@@ -45,12 +46,33 @@ def load_settings() -> Settings:
     return Settings()
 
 
+def _configure_logging(settings: Settings) -> None:
+    level = settings.log_level.upper()
+    formatter = logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not any(getattr(handler, "_mochi_file", False) for handler in root.handlers):
+        log_dir = settings.data_dir / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            log_dir / "mochi.log",
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        handler.setFormatter(formatter)
+        handler._mochi_file = True  # type: ignore[attr-defined]
+        root.addHandler(handler)
+    if not any(getattr(handler, "_mochi_console", False) for handler in root.handlers):
+        console = logging.StreamHandler()
+        console.setFormatter(formatter)
+        console._mochi_console = True  # type: ignore[attr-defined]
+        root.addHandler(console)
+
+
 def bootstrap(settings: Settings) -> AppContext:
     settings.ensure_dirs()
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-    )
+    _configure_logging(settings)
     user_settings = UserSettings(settings.data_dir / "settings.json")
 
     cards = CardLoader(settings.characters_path(), settings.character)

@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .bootstrap import bootstrap
-from .config.character_card import Persona
+from .config.character_card import CardLoader, Persona
 from .config.llm_settings import LLMConfig, mask_key
 from .config.settings import Settings
 from .context import AppContext
@@ -225,7 +225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "protocol": PROTOCOL_VERSION,
             "character": cfg.character,
             "data_dir": str(cfg.data_dir),
-            "llm_configured": bool(cfg.llm_api_key),
+            "llm_configured": bool(ctx.llm.config.api_key),
             "token_required": bool(cfg.server_token),
         }
 
@@ -297,6 +297,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ── 情感引擎调试 API（T3-01 / T3-18）──
     # ── 记忆 / 工具 / 技能（S6）──
+    @app.get("/api/v1/characters", dependencies=[Depends(require_token)])
+    async def list_characters() -> dict[str, Any]:
+        items = []
+        for card_id in ctx.characters.list_ids():
+            try:
+                card = CardLoader(ctx.characters.directory, card_id).current
+                items.append({"id": card.id, "name": card.name, "greeting": card.greeting})
+            except Exception:  # noqa: BLE001 - 坏卡不拖垮列表
+                continue
+        return {"characters": items, "current": ctx.characters.current.id}
+
+    @app.post("/api/v1/characters/{card_id}/select", dependencies=[Depends(require_token)])
+    async def select_character(card_id: str) -> dict[str, Any]:
+        try:
+            card = ctx.orchestrator.select_character(card_id)
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"id": card.id, "name": card.name, "greeting": card.greeting}
+
+    @app.get("/api/v1/logs", dependencies=[Depends(require_token)])
+    async def tail_logs(lines: int = 200) -> dict[str, Any]:
+        path = cfg.data_dir / "logs" / "mochi.log"
+        if not path.exists():
+            return {"lines": [], "path": str(path)}
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        return {"lines": content[-max(1, min(lines, 2000)) :], "path": str(path)}
+
     @app.get("/api/v1/memory/sessions", dependencies=[Depends(require_token)])
     async def memory_sessions() -> dict[str, Any]:
         sessions = await ctx.memory.list_sessions()

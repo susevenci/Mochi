@@ -25,7 +25,7 @@ jobs:
       - name: Mypy
         run: python -m mypy mochi/server/app mochi/scripts --config-file mochi/pyproject.toml
       - name: Pytest
-        run: python -m pytest mochi --cov=app.emotion --cov-report=term-missing --cov-fail-under=80
+        run: python -m pytest mochi --cov=app --cov-report=term-missing --cov-fail-under=60
       - name: Contract drift (I4)
         run: |
           python mochi/scripts/export_schema.py
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci --prefix mochi/frontend
       - name: Typecheck and build
